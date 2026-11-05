@@ -1,0 +1,15 @@
+export const placeholders = {
+  gameTitle: "[ADD GAME TITLE]",
+  gamePlatform: "[ADD PLATFORM]",
+  gameStatus: "[ADD CURRENT STATUS]",
+  gameImpressions: "[ADD GAME IMPRESSIONS]",
+  favouriteGame: "[ADD FAVOURITE GAME]",
+  recentGame: "[ADD RECENTLY PLAYED GAME]",
+  gameDate: "[ADD DATE]",
+  completionStatus: "[ADD COMPLETION STATUS]",
+  experience: "[ADD EXPERIENCE DETAILS]",
+  personalNote: "[ADD PERSONAL NOTE]",
+  photographyStory: "[ADD PHOTOGRAPHY STORY]",
+  photoWorkflow: "[ADD PHOTOGRAPHY WORKFLOW]",
+  astroWorkflow: "[ADD ASTROPHOTOGRAPHY STACKING WORKFLOW]",
+} as const;
