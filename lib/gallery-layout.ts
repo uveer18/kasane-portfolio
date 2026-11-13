@@ -521,6 +521,132 @@ function packFocusSide(
   return result.overflow;
 }
 
+/**
+ * Circular spatial slot ordering for the conveyor:
+ * 
+ * Slots are numbered in visual traversal order from bottom-right through
+ * right columns, across to left columns, and wrapping back. This creates
+ * the appearance of continuous flow: right → focus → left → right.
+ * 
+ * When a new photo becomes focused:
+ * - The previous focus moves to the nearest left slot
+ * - All side images advance through the slot sequence
+ * - The image at the top-left wraps to the bottom-right
+ */
+function buildConveyorSequence(
+  images: GalleryImage[],
+  focusedId: string,
+  options: {
+    rightSlots: number;
+    leftSlots: number;
+  },
+): {
+  focusedIndex: number;
+  rightSequence: string[];
+  leftSequence: string[];
+  allIds: string[];
+} {
+  const focusedIndex = images.findIndex((img) => img.id === focusedId);
+  if (focusedIndex < 0) {
+    return {
+      focusedIndex: -1,
+      rightSequence: [],
+      leftSequence: [],
+      allIds: images.map((img) => img.id),
+    };
+  }
+
+  const totalSideSlots = options.rightSlots + options.leftSlots;
+  const count = images.length;
+
+  // Build a circular sequence starting from the focused image
+  const sequence: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const idx = (focusedIndex + 1 + i) % count;
+    sequence.push(images[idx].id);
+  }
+
+  // Split into right and left sequences
+  const rightSequence = sequence.slice(0, options.rightSlots);
+  const leftSequence = sequence.slice(options.rightSlots, totalSideSlots);
+
+  return {
+    focusedIndex,
+    rightSequence,
+    leftSequence,
+    allIds: sequence,
+  };
+}
+
+/**
+ * Pack images into left and right columns using actual dimensions,
+ * respecting the specified sequence order.
+ */
+function packConveyorSide(
+  sequenceIds: string[],
+  imageMap: Map<string, GalleryImage>,
+  x: number,
+  width: number,
+  height: number,
+  gap: number,
+  columns: number,
+  mirror: boolean,
+): Map<string, Rect> {
+  const rects = new Map<string, Rect>();
+  if (!sequenceIds.length || width < 20 || height < 20) return rects;
+
+  const columnCount = Math.max(1, Math.min(columns, sequenceIds.length));
+  const perColumn = Array.from({ length: columnCount }, () => [] as string[]);
+  const remaining = [...sequenceIds];
+  const columnRatios: number[] = Array(columnCount).fill(0);
+  for (const id of remaining) {
+    const image = imageMap.get(id);
+    if (!image) continue;
+    let targetColumn = 0;
+    for (let column = 1; column < columnCount; column++) {
+      if (columnRatios[column] < columnRatios[targetColumn]) targetColumn = column;
+    }
+    perColumn[targetColumn].push(id);
+    columnRatios[targetColumn] += 1 / ratioOf(image);
+  }
+
+  const columnWidths = perColumn.map((ids) => {
+    const ratioSum = ids.reduce((sum, id) => {
+      const image = imageMap.get(id);
+      return sum + (image ? 1 / ratioOf(image) : 0);
+    }, 0);
+    const heightLimitedWidth = ratioSum > 0
+      ? Math.max(1, (height - gap * Math.max(0, ids.length - 1)) / ratioSum)
+      : 1;
+    return Math.min((width - gap * (columnCount - 1)) / columnCount, heightLimitedWidth);
+  });
+
+  let columnX = 0;
+  perColumn.forEach((ids, column) => {
+    const columnWidth = columnWidths[column];
+    let columnY = 0;
+    ids.forEach((id) => {
+      const image = imageMap.get(id);
+      if (!image) return;
+      const frameHeight = columnWidth / ratioOf(image);
+      rects.set(id, {
+        x: columnX,
+        y: columnY,
+        width: columnWidth,
+        height: frameHeight,
+      });
+      columnY += frameHeight + gap;
+    });
+    columnX += columnWidth + gap;
+  });
+
+  rects.forEach((rect) => {
+    rect.x = mirror ? x + width - rect.x - rect.width : x + rect.x;
+  });
+
+  return rects;
+}
+
 export function layoutFocusDesktop(
   images: GalleryImage[],
   focalId: string,
@@ -635,81 +761,48 @@ export function layoutFocusDesktop(
     width - padding - rightX,
   );
 
-  const leftImages = images.slice(0, index);
-  const rightImages = images.slice(index + 1);
+  // Keep the photographic walls to two columns maximum, allocating the full
+  // circular sequence proportionally to the space available on each side.
+  const rightColumns = Math.max(1, Math.min(2, Math.floor((rightWidth + PERIPHERAL_GAP) / 105)));
+  const leftColumns = Math.max(1, Math.min(2, Math.floor((leftWidth + PERIPHERAL_GAP) / 105)));
+  const sideCount = images.length - 1;
+  const rightSlots = Math.round(sideCount * rightWidth / Math.max(1, rightWidth + leftWidth));
+  const leftSlots = sideCount - rightSlots;
 
-  const leftOverflow = packFocusSide(
-    leftImages,
-    padding,
-    leftWidth,
-    focalHeight,
-    PERIPHERAL_GAP,
-    rects,
-    true,
-  ) ?? [];
+  // Build the circular conveyor sequence
+  const conveyor = buildConveyorSequence(images, focalId, {
+    rightSlots,
+    leftSlots,
+  });
 
-  const rightOverflow = packFocusSide(
-    rightImages,
+  // Create a map for quick lookup
+  const imageMap = new Map(images.map((img) => [img.id, img]));
+
+  // Pack right side (nearest image goes to top-right, sequence flows down)
+  const rightRects = packConveyorSide(
+    conveyor.rightSequence,
+    imageMap,
     rightX,
     rightWidth,
     focalHeight,
     PERIPHERAL_GAP,
-    rects,
-  ) ?? [];
-
-  // Overflow images become compact thumbnails above the main composition.
-  // Never discard an image or allow it to overlap the focal image.
-  const overflowIds = new Set([
-    ...leftOverflow,
-    ...rightOverflow,
-  ]);
-
-  const overflowImages = images.filter(
-    (image) =>
-      overflowIds.has(image.id) &&
-      image.id !== focal.id,
+    rightColumns,
+    false,
   );
+  rightRects.forEach((rect, id) => rects.set(id, rect));
 
-  let thumbX = padding;
-  let thumbY = padding;
-  const thumbHeight = Math.min(52, height * 0.065);
-  const thumbGap = PERIPHERAL_GAP;
-
-  for (const image of overflowImages) {
-    const thumbWidth = Math.min(
-      thumbHeight * ratioOf(image),
-      availableWidth,
-    );
-
-    if (thumbX + thumbWidth > width - padding) {
-      thumbX = padding;
-      thumbY += thumbHeight + thumbGap;
-    }
-
-    // Do not place thumbnails into the focal region.
-    if (
-      thumbY + thumbHeight >= focalY &&
-      thumbY < focalY + focalHeight
-    ) {
-      thumbY = focalY + focalHeight + gap;
-      thumbX = padding;
-    }
-
-    if (thumbY + thumbHeight > height) {
-      // Keep all images represented without allowing out-of-viewport frames.
-      // Remaining thumbnails are scaled into the available bottom region.
-      thumbY = Math.max(padding, height - thumbHeight - padding);
-    }
-
-    rects.set(image.id, {
-      x: thumbX,
-      y: thumbY,
-      width: thumbWidth,
-      height: thumbWidth / ratioOf(image),
-    });
-
-    thumbX += thumbWidth + thumbGap;
-  }
+  // Pack left side (nearest image goes to top-left, sequence flows down and mirrors)
+  const leftRects = packConveyorSide(
+    conveyor.leftSequence,
+    imageMap,
+    padding,
+    leftWidth,
+    focalHeight,
+    PERIPHERAL_GAP,
+    leftColumns,
+    true,
+  );
+  leftRects.forEach((rect, id) => rects.set(id, rect));
 
   return {
     rects,

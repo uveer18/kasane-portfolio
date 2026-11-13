@@ -1372,7 +1372,7 @@ html[data-lightbox-open] body { overflow: hidden; padding-right: var(--lightbox-
 /* The hero fills the viewport-height frame; side-wall frames retain the
    dimensions supplied by the geometric packer. */
 .spatial-gallery[data-mode="focus"] .spatial-frame .spatial-image {
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .spatial-gallery[data-mode="focus"] .spatial-panel {
