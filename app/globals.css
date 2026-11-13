@@ -309,6 +309,19 @@ a { text-underline-offset: 0.22em; }
 .photo-admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(1rem, 3vw, 2rem); align-items: start; }
 @media (max-width: 767px) { .photo-admin-grid { grid-template-columns: 1fr; } }
 
+@media (max-width: 640px) {
+  .photo-upload-form button {
+    width: 100%;
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .photo-upload-form {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
 /* Spatial gallery: a dense masonry wall that becomes a centred spatial composition. */
 .spatial-gallery-stage { position: relative; overflow-anchor: none; }
 .spatial-gallery { position: relative; display: block; height: 100%; overflow: hidden; overflow-anchor: none; }
