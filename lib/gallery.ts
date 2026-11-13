@@ -10,6 +10,7 @@ export type GalleryImage = {
   thumbnail: string;
   alt: string;
   title: string;
+  description?: string;
   collection: string;
   width: number;
   height: number;
@@ -27,9 +28,31 @@ export type GalleryImage = {
 export type MetaField = { label: string; value: string; optional: boolean };
 
 /** Stable identity derived from the asset itself, so it survives any reordering. */
+/**
+ * Stable identity across local and Supabase Storage URLs.
+ * Both /images/gallery/01.jpg and a Supabase URL ending
+ * in /gallery/01.jpg resolve to the same identity.
+ */
 export function galleryImageId(src: string): string {
-  const file = src.split("?")[0].replace(/^\/+/, "");
-  return file.replace(/\.[a-z0-9]+$/i, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() || "image";
+  try {
+    const url = new URL(src, "http://localhost");
+
+    // Keep the full path so local and Supabase assets
+    // cannot collide just because their filenames match.
+    const identity = `${url.host}${url.pathname}`;
+
+    return identity
+      .replace(/\.[a-z0-9]+$/i, "")
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase() || "image";
+  } catch {
+    return src
+      .replace(/[?#].*$/, "")
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase() || "image";
+  }
 }
 
 /** Newest capture first; uploads without an EXIF date lead the list. */
@@ -48,11 +71,17 @@ export function buildGalleryCollection(photos: Photograph[]): GalleryImage[] {
     src: photo.src,
     thumbnail: photo.thumbnail ?? photo.src,
     alt: photo.alt,
-    title: `Nature study ${String(index + 1).padStart(2, "0")}`,
+    title:
+      photo.title?.trim() ||
+      `Nature study ${String(index + 1).padStart(2, "0")}`,
+    description: photo.description?.trim() || undefined,
     collection: photo.collection ?? "Nature",
     width: photo.width ?? 0,
     height: photo.height ?? 0,
-    aspectRatio: photo.width && photo.height ? photo.width / photo.height : photo.aspectRatio ?? 1,
+    aspectRatio:
+      photo.width && photo.height
+        ? photo.width / photo.height
+        : photo.aspectRatio ?? 1,
     captureDate: photo.captureDate,
     camera: photo.camera,
     lens: photo.lens,
