@@ -1524,3 +1524,441 @@ html[data-lightbox-open] body { overflow: hidden; padding-right: var(--lightbox-
     will-change: auto;
   }
 }
+
+
+
+
+/* ============================================================
+   MOBILE LIGHTBOX — full-screen overlay and contained controls
+   ============================================================ */
+
+@media (max-width: 640px) {
+  .spatial-mobile {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+
+    width: 100vw;
+    height: 100vh;
+    height: 100svh;
+    min-height: 0;
+    margin: 0;
+
+    overflow: hidden;
+    overscroll-behavior: contain;
+    background: var(--page);
+    isolation: isolate;
+  }
+
+  /* Compact three-row photograph navigator. */
+  .spatial-mobile .spatial-navigator {
+    position: relative;
+    z-index: 5;
+    flex: 0 0 auto;
+    gap: 3px;
+    padding: max(8px, env(safe-area-inset-top)) 0 6px;
+    overflow: hidden;
+  }
+
+  .spatial-mobile .spatial-navigator-row {
+    gap: 3px;
+    min-height: 0;
+  }
+
+  .spatial-mobile .spatial-thumb-frame {
+    transform: none;
+  }
+
+  .spatial-mobile .spatial-thumb-frame[data-focused="true"] {
+    outline: 2px solid var(--seiji-surface);
+    outline-offset: -2px;
+  }
+
+  /* Hero gets a controlled share of the viewport. */
+  .spatial-mobile .spatial-mobile-stage {
+    position: relative;
+    flex: 0 0 51svh;
+    width: 100%;
+    height: 51svh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .spatial-mobile .spatial-mobile-main {
+    position: relative;
+    width: 100%;
+    height: 100% !important;
+    min-height: 0;
+  }
+
+  .spatial-mobile .spatial-mobile-main .spatial-image {
+    object-fit: contain;
+  }
+
+  .spatial-mobile .spatial-edge-preview {
+    max-height: 100%;
+    overflow: hidden;
+  }
+
+  /* Metadata: one readable column in portrait orientation. */
+  .spatial-mobile .spatial-panel-mobile {
+    position: relative;
+    z-index: 4;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    max-height: none;
+    margin: 0;
+    padding: .85rem 1rem 4.5rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--lum-panel);
+    border-top: 1px solid var(--lum-edge-line);
+  }
+
+  .spatial-mobile .spatial-panel-mobile .photo-exif-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-auto-flow: row;
+    align-content: start;
+    gap: .65rem;
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .spatial-mobile .spatial-panel-mobile .spatial-panel-head {
+    margin-bottom: .5rem;
+  }
+
+  /* Controls are positioned relative to the full-screen overlay,
+     not the metadata panel or the page. */
+  .spatial-mobile .spatial-nav {
+    position: absolute;
+    z-index: 20;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    display: flex;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--lum-edge-line);
+    border-radius: 50%;
+    color: var(--ink);
+    background: var(--lum-panel);
+    box-shadow: var(--lum-shadow-float);
+  }
+
+  .spatial-mobile .spatial-nav-previous {
+    left: 14px;
+  }
+
+  .spatial-mobile .spatial-nav-next {
+    right: 14px;
+  }
+
+  .spatial-mobile .spatial-close {
+    position: absolute;
+    z-index: 30;
+    top: max(10px, env(safe-area-inset-top));
+    right: 12px;
+    display: flex;
+    width: 42px;
+    height: 42px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--lum-edge-line);
+    border-radius: 50%;
+    color: var(--ink);
+    background: var(--lum-panel);
+    box-shadow: var(--lum-shadow-float);
+  }
+}
+
+
+
+/* ============================================================
+   MOBILE PHOTOGRAPH VIEW — Google Photos-inspired filmstrip
+   ============================================================ */
+
+@media (max-width: 640px) {
+
+  .spatial-mobile {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    width: 100vw;
+    height: 100vh;
+    height: 100svh;
+    min-height: 0;
+    margin: 0;
+    overflow: hidden;
+    isolation: isolate;
+    background: var(--page);
+  }
+
+  /* Full-screen image stage */
+  .spatial-mobile-stage {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    touch-action: pan-y;
+    background: var(--page);
+  }
+
+  .spatial-mobile-main {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    will-change: transform;
+  }
+
+  .spatial-mobile-main .spatial-image {
+    object-fit: contain !important;
+  }
+
+  /* Close button */
+  .spatial-mobile-close {
+    position: absolute;
+    top: max(14px, env(safe-area-inset-top));
+    right: 14px;
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    color: var(--ink);
+    background: var(--lum-panel);
+    border: 1px solid var(--lum-edge-line);
+    box-shadow: var(--lum-shadow-md);
+  }
+
+  /* Bottom dock */
+  .spatial-mobile-dock {
+    position: absolute;
+    z-index: 25;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 28px 0 max(12px, env(safe-area-inset-bottom));
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      color-mix(in srgb, var(--page) 88%, transparent) 28%,
+      var(--page) 72%
+    );
+    pointer-events: none;
+  }
+
+  .spatial-mobile-dock > * {
+    pointer-events: auto;
+  }
+
+  /* Current photo title and details toggle */
+  .spatial-mobile-caption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 18px;
+  }
+
+  .spatial-mobile-caption-title {
+    margin-top: 2px;
+    overflow: hidden;
+    color: var(--ink);
+    font-family: var(--font-newsreader), Georgia, serif;
+    font-size: 1.05rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .spatial-mobile-details-toggle {
+    flex: 0 0 auto;
+    padding: 8px 13px;
+    border: 1px solid var(--lum-edge-line);
+    border-radius: 999px;
+    color: var(--ink);
+    background: var(--lum-panel);
+    font-size: .72rem;
+  }
+
+  /* Single horizontal filmstrip */
+  .spatial-mobile-filmstrip {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+    height: 78px;
+    padding: 4px 18px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .spatial-mobile-filmstrip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .spatial-mobile-filmstrip-item {
+    position: relative;
+    flex: 0 0 auto;
+    overflow: hidden;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    background: var(--lum-panel-sunken);
+    opacity: .66;
+    transform: scale(.94);
+    transition:
+      opacity 220ms ease,
+      transform 220ms ease,
+      border-color 220ms ease;
+  }
+
+  .spatial-mobile-filmstrip-item[data-focused="true"] {
+    z-index: 2;
+    opacity: 1;
+    transform: scale(1);
+    border-color: var(--seiji-text);
+    box-shadow: 0 0 0 1px var(--lum-panel);
+  }
+
+  /* Expandable EXIF details */
+  .spatial-mobile-details {
+    position: absolute;
+    z-index: 24;
+    right: 12px;
+    bottom: calc(116px + env(safe-area-inset-bottom));
+    left: 12px;
+    max-height: 48svh;
+    padding: 18px;
+    overflow-y: auto;
+    border: 1px solid var(--lum-edge-line);
+    border-radius: 14px;
+    color: var(--ink);
+    background: var(--lum-panel);
+    background-image: var(--lum-light-wash);
+    box-shadow: var(--lum-shadow-float);
+    animation: mobile-details-in 220ms var(--ease-editorial) both;
+  }
+
+  .spatial-mobile-details-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .spatial-mobile-details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 15px 18px;
+  }
+
+  .spatial-mobile-details-grid > div {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  @keyframes mobile-details-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spatial-mobile-filmstrip-item {
+    transition: none;
+  }
+
+  .spatial-mobile-details {
+    animation: none;
+  }
+}
+
+
+
+@media (max-width: 640px) {
+  .spatial-mobile-stage {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .spatial-mobile-main {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: auto;
+    display: block;
+  }
+
+  .spatial-mobile-main .spatial-image {
+    object-fit: contain !important;
+    object-position: center center !important;
+  }
+}
+
+
+/* MobileFocus is selected by React, so target the component itself
+   rather than relying on the CSS viewport breakpoint. */
+.spatial-mobile {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.spatial-mobile .spatial-mobile-stage {
+  position: absolute !important;
+  inset: 0 !important;
+  display: grid !important;
+  place-items: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.spatial-mobile .spatial-mobile-main {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+}
+
+.spatial-mobile .spatial-mobile-main img {
+  object-fit: contain !important;
+  object-position: center center !important;
+}
+

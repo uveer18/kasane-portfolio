@@ -234,10 +234,6 @@ export function PhotoGallery({ preview = false }: { preview?: boolean }) {
     return layoutFocusDesktop(visibleImages, focused.id, { width: viewport.width, height: viewport.height });
   }, [visibleImages, focused, viewport]);
 
-  const mobileLayout = useMemo(() => {
-    if (!focused || !viewport.width) return null;
-    return layoutFocusMobile(visibleImages, focused.id, { width: viewport.width, height: viewport.height, gap: 8, rowCount: 3 });
-  }, [visibleImages, focused, viewport]);
 
   /*
    * Keep every moving frame on its thumbnail during FLIP. Promote only the
@@ -352,7 +348,7 @@ export function PhotoGallery({ preview = false }: { preview?: boolean }) {
   /* On desktop the composition covers the page, so the document is held still
      and the scrollbar width is compensated so nothing shifts. */
   useEffect(() => {
-    if (!focused || mobileFocus) return;
+    if (!focused) return;
     const root = document.documentElement;
     const previousOverflow = document.body.style.overflow;
     root.style.setProperty("--lightbox-scrollbar-width", `${measureScrollbarWidth()}px`);
@@ -586,7 +582,6 @@ export function PhotoGallery({ preview = false }: { preview?: boolean }) {
       {mobileFocus ? <MobileFocus
         images={visibleImages}
         focused={focused!}
-        layout={mobileLayout!}
         highResolutionIds={highResolutionIds}
         onSelect={focusImage}
         onClose={release}
@@ -628,90 +623,221 @@ export function PhotoGallery({ preview = false }: { preview?: boolean }) {
   </>;
 }
 
-function MobileFocus({ images, focused, layout, highResolutionIds, onSelect, onClose, onTouchStart, onTouchEnd }: {
+
+function MobileFocus({
+  images,
+  focused,
+  highResolutionIds,
+  onSelect,
+  onClose,
+  onTouchStart,
+  onTouchEnd,
+}: {
   images: GalleryImage[];
   focused: GalleryImage;
-  layout: ReturnType<typeof layoutFocusMobile>;
   highResolutionIds: Set<string>;
   onSelect: (id: string) => void;
   onClose: () => void;
   onTouchStart: (event: React.TouchEvent) => void;
   onTouchEnd: (event: React.TouchEvent) => void;
 }) {
-  const rowRefs = useRef(new Map<string, HTMLDivElement>());
-  const stageRef = useRef<HTMLDivElement>(null);
-  const enteredRef = useRef(false);
+  const filmstripRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
+  const previousIndexRef = useRef<number | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
   const fields = metaFieldsFor(focused);
+  const currentIndex = galleryIndex(images, focused.id);
 
-  /* Bring the composition into view the first time it opens. */
+  // Keep the active thumbnail centred in the filmstrip.
   useEffect(() => {
-    if (enteredRef.current) return;
-    enteredRef.current = true;
-    stageRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, []);
+    const strip = filmstripRef.current;
+    if (!strip) return;
 
-  /* Bring the focused thumbnail into view without moving the document. */
+    const active = strip.querySelector<HTMLElement>(
+      `[data-thumb="${CSS.escape(focused.id)}"]`
+    );
+
+    if (!active) return;
+
+    strip.scrollTo({
+      left: active.offsetLeft - strip.clientWidth / 2 + active.clientWidth / 2,
+      behavior: "smooth",
+    });
+  }, [focused.id]);
+
+  // Slide the incoming photograph in the direction of navigation.
   useEffect(() => {
-    for (const row of layout.rows) {
-      const element = rowRefs.current.get(row.id);
-      if (!element) continue;
-      const target = row.items.find((item) => item.id === focused.id);
-      if (!target) continue;
-      const offset = element.scrollLeft;
-      const position = element.querySelector<HTMLElement>(`[data-thumb="${target.id}"]`);
-      if (position) element.scrollTo({ left: offset + position.offsetLeft - element.clientWidth / 2 + position.clientWidth / 2, behavior: "smooth" });
-    }
-  }, [focused.id, layout.rows]);
+    const previousIndex = previousIndexRef.current;
+    previousIndexRef.current = currentIndex;
 
-  return <div className="spatial-mobile">
-    <nav className="spatial-navigator" aria-label="Photograph navigator">
-      {layout.rows.map((row) => <div key={row.id} className="spatial-navigator-row" ref={(element) => { if (element) rowRefs.current.set(row.id, element); else rowRefs.current.delete(row.id); }}>
-        {row.items.map((item) => <button
-          key={item.id}
-          type="button"
-          data-thumb={item.id}
-          className="spatial-thumb-frame"
-          data-focused={item.id === focused.id ? "true" : "false"}
-          style={{ height: `${row.height}px`, width: `${Math.round(row.height * item.aspectRatio)}px` }}
-          onClick={() => onSelect(item.id)}
-          aria-label={`Open photograph: ${item.title}`}
+    if (previousIndex === null || previousIndex === currentIndex) return;
+
+    let difference = currentIndex - previousIndex;
+
+    // Choose the shortest direction when wrapping around the collection.
+    if (difference > images.length / 2) difference -= images.length;
+    if (difference < -images.length / 2) difference += images.length;
+
+    const direction = difference > 0 ? 1 : -1;
+    const element = mainRef.current;
+
+    if (!element) return;
+
+    const animation = element.animate(
+      [
+        {
+          transform: `translate3d(${direction * 100}%, 0, 0)`,
+          opacity: 0.75,
+        },
+        {
+          transform: "translate3d(0, 0, 0)",
+          opacity: 1,
+        },
+      ],
+      {
+        duration: 340,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+        fill: "both",
+      }
+    );
+
+    void animation.finished
+      .then(() => animation.cancel())
+      .catch(() => undefined);
+  }, [currentIndex, images.length]);
+
+  return (
+    <div className="spatial-mobile">
+
+      {/* Full-screen photograph */}
+      <div
+        className="spatial-mobile-stage"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
+        <div className="spatial-mobile-main" ref={mainRef}>
+          <GalleryImageView
+            image={focused}
+            highResolution={highResolutionIds.has(focused.id)}
+            transitionDone={true}
+            sizes="100vw"
+            className="object-contain"
+          />
+        </div>
+      </div>
+
+      {/* Close */}
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close photograph"
+        className="spatial-close spatial-mobile-close surface-lit"
+      >
+        <X size={21} />
+      </button>
+
+      {/* Optional metadata sheet */}
+      {detailsOpen && (
+        <aside className="spatial-mobile-details">
+          <div className="spatial-mobile-details-heading">
+            <div>
+              <p className="meta-label text-muted-foreground">
+                {focused.collection} · {String(currentIndex + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}
+              </p>
+              <h2 className="font-display text-xl">{focused.title}</h2>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setDetailsOpen(false)}
+              aria-label="Close details"
+            >
+              <X size={19} />
+            </button>
+          </div>
+
+          <div className="spatial-mobile-details-grid">
+            {fields.map((field) => (
+              <div key={field.label}>
+                <p className="meta-label text-muted-foreground">
+                  {field.label}
+                </p>
+                <p className="text-sm text-foreground">
+                  {field.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        </aside>
+      )}
+
+      {/* Bottom Google Photos-style controls */}
+      <div className="spatial-mobile-dock">
+
+        {!detailsOpen && (
+          <div className="spatial-mobile-caption">
+            <div className="min-w-0">
+              <p className="meta-label text-muted-foreground">
+                {String(currentIndex + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}
+              </p>
+              <p className="spatial-mobile-caption-title">
+                {focused.title}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="spatial-mobile-details-toggle"
+              onClick={() => setDetailsOpen((value) => !value)}
+              aria-expanded={detailsOpen}
+            >
+              {detailsOpen ? "Hide details" : "Details"}
+            </button>
+          </div>
+        )}
+
+        <nav
+          className="spatial-mobile-filmstrip"
+          ref={filmstripRef}
+          aria-label="Photograph navigator"
         >
-          <Image src={item.thumbnail} alt="" fill sizes="120px" className="spatial-image spatial-thumb" />
-        </button>)}
-      </div>)}
-    </nav>
+          {images.map((image) => {
+            const active = image.id === focused.id;
 
-    <div className="spatial-mobile-stage" ref={stageRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-      {layout.previews.map((preview) => {
-        const image = images.find((item) => item.id === preview.id);
-        if (!image) return null;
-        return <div key={preview.id} className="spatial-edge-preview" style={{ left: preview.rect.x, top: preview.rect.y, width: preview.rect.width, height: preview.rect.height }}>
-          <Image src={image.thumbnail} alt="" fill sizes="200px" className="spatial-image spatial-thumb" />
-        </div>;
-      })}
-      <div className="spatial-mobile-main" style={{ height: layout.main.height }}>
-        <GalleryImageView
-          image={focused}
-          highResolution={highResolutionIds.has(focused.id)}
-          transitionDone={true}
-          sizes="100vw"
-          className="object-contain"
-        />
+            const width = Math.max(
+              38,
+              Math.min(94, (active ? 68 : 50) * image.aspectRatio)
+            );
+
+            return (
+              <button
+                key={image.id}
+                type="button"
+                data-thumb={image.id}
+                className="spatial-mobile-filmstrip-item"
+                data-focused={active ? "true" : "false"}
+                style={{
+                  width: `${width}px`,
+                  height: active ? "68px" : "50px",
+                }}
+                onClick={() => onSelect(image.id)}
+                aria-label={`Open photograph: ${image.title}`}
+                aria-current={active ? "true" : undefined}
+              >
+                <Image
+                  src={image.thumbnail || image.src}
+                  alt=""
+                  fill
+                  sizes="100px"
+                  className="spatial-image"
+                />
+              </button>
+            );
+          })}
+        </nav>
       </div>
     </div>
-
-    <aside className="spatial-panel spatial-panel-mobile">
-      <div className="spatial-panel-head">
-        <p className="meta-label text-muted-foreground">{focused.collection} · <span className="spatial-counter" aria-live="polite">{String(galleryIndex(images, focused.id) + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}</span></p>
-        <h2 className="spatial-panel-title font-display leading-tight">{focused.title}</h2>
-      </div>
-      <div className="photo-exif-grid grid gap-x-3 gap-y-1.5 text-[11px] leading-snug text-muted-foreground">
-        {fields.map((field) => <div key={field.label} className="min-w-0"><p className="meta-label mb-0.5 text-muted-foreground">{field.label}</p><p className="spatial-panel-value text-foreground">{field.value}</p></div>)}
-      </div>
-    </aside>
-
-    <button type="button" onClick={() => onSelect(neighbourIds(images, focused.id).previousId ?? focused.id)} aria-label="Previous photograph" className="spatial-nav spatial-nav-previous surface-lit"><ArrowLeft size={18} /></button>
-    <button type="button" onClick={() => onSelect(neighbourIds(images, focused.id).nextId ?? focused.id)} aria-label="Next photograph" className="spatial-nav spatial-nav-next surface-lit"><ArrowRight size={18} /></button>
-    <button type="button" onClick={onClose} aria-label="Close photograph" className="spatial-close surface-lit"><X size={20} /></button>
-  </div>;
+  );
 }
+
