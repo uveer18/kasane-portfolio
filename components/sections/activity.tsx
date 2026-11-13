@@ -248,7 +248,7 @@ const HeatmapCard = React.memo(function HeatmapCard({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: false, margin: "-50px" }}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className="rounded-xl bg-card p-4 sm:p-6 md:p-8 shadow-sm transition-[transform,box-shadow,border-color] duration-300 hover:shadow-md"
+      className="card-lit rounded-xl p-4 sm:p-6 md:p-8 transition-[transform,box-shadow,border-color] duration-300"
     >
       <div className="mb-3 flex flex-col gap-4  pb-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
@@ -287,7 +287,7 @@ const HeatmapCard = React.memo(function HeatmapCard({
       {meta && (
         <div className="mb-4 flex flex-wrap gap-2 text-sm sm:gap-3">
           {meta.map((m) => (
-            <div key={m.label} className={`flex items-baseline gap-1.5 rounded-lg px-2 py-1 sm:px-3 sm:py-1.5 ${m.color ?? "bg-muted/40 border-border"}`}>
+            <div key={m.label} className={`flex items-baseline gap-1.5 rounded-lg border px-2 py-1 sm:px-3 sm:py-1.5 ${m.color ?? "bg-muted border-border"}`}>
               <span className="text-[10px] sm:text-xs font-medium opacity-90">{m.label}</span>
               <span className="text-xs sm:text-sm font-bold">{m.value}</span>
             </div>
@@ -464,8 +464,8 @@ function LeetcodeHeatmap() {
 
 export function Activity() {
   return (
-    <ViewportFadeSection id="activity" className="px-6 py-24 md:py-32 overflow-hidden">
-      <div className="mx-auto max-w-6xl w-full">
+    <ViewportFadeSection id="activity" className="px-[var(--page-gutter)] py-24 md:py-32 overflow-hidden">
+      <div className="page-shell">
         <FadeIn>
           <div className="mb-16 flex items-center gap-4">
             <span className="h-px flex-1 bg-border" />

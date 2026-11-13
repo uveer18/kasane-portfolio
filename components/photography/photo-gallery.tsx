@@ -1,91 +1,601 @@
 "use client";
 
 import Image from "next/image";
-import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Expand, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { photographs, type Photograph } from "@/lib/photography";
+import { ArrowLeft, ArrowRight, X } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  buildGalleryCollection,
+  galleryIndex,
+  mergeGalleryImages,
+  metaFieldsFor,
+  neighbourIds,
+  type GalleryImage,
+} from "@/lib/gallery";
+import {
+  GALLERY_GAP,
+  layoutFocusDesktop,
+  layoutFocusMobile,
+  layoutGallery,
+  type Rect,
+} from "@/lib/gallery-layout";
+import { photographs } from "@/lib/photography";
 
-function PhotoLightbox({ photos, photoIndex, onClose, onChange }: { photos: Photograph[]; photoIndex: number; onClose: () => void; onChange: (index: number) => void }) {
-  const photo = photos[photoIndex];
-  const [zoomed, setZoomed] = useState(false);
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const previousFocus = useRef<HTMLElement | null>(null);
-  const change = useCallback((direction: number) => { setZoomed(false); onChange((photoIndex + direction + photos.length) % photos.length); }, [onChange, photoIndex, photos.length]);
+const TRANSITION_MS = 620;
+const COOLDOWN_MS = 140;
+const EASING = "cubic-bezier(0.32, 0.72, 0, 1)";
+const MOBILE_BREAKPOINT = 640;
 
-  useEffect(() => {
-    previousFocus.current = document.activeElement as HTMLElement | null;
-    closeRef.current?.focus();
-    const oldOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const keydown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-      if (event.key === "ArrowLeft") change(-1);
-      if (event.key === "ArrowRight") change(1);
-      if (event.key === "+" || event.key === "=") setZoomed(true);
-      if (event.key === "-") setZoomed(false);
-      if (event.key === "Tab") {
-        const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex='-1'])") ?? []).filter((element) => element.getClientRects().length > 0);
-        if (!focusable.length) return;
-        const first = focusable[0]; const last = focusable[focusable.length - 1];
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-      }
-    };
-    window.addEventListener("keydown", keydown);
-    return () => { document.body.style.overflow = oldOverflow; window.removeEventListener("keydown", keydown); previousFocus.current?.focus(); };
-  }, [change, onClose]);
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
-  return <motion.div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Photograph: ${photo.title}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] flex items-center justify-center bg-black/88 p-3 backdrop-blur-md sm:p-7" onClick={onClose} onTouchStart={(event) => setTouchStart(event.touches[0]?.clientX ?? null)} onTouchEnd={(event) => { if (touchStart === null) return; const distance = (event.changedTouches[0]?.clientX ?? touchStart) - touchStart; if (Math.abs(distance) > 55) change(distance > 0 ? -1 : 1); setTouchStart(null); }}>
-    <div className="lightbox-blur pointer-events-none fixed inset-0 opacity-30"/>
-    <button ref={closeRef} onClick={onClose} aria-label="Close photograph" className="glass absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full text-foreground sm:right-7 sm:top-7"><X size={20}/></button>
-    <button onClick={(event) => { event.stopPropagation(); change(-1); }} aria-label="Previous photograph" className="glass absolute left-3 top-1/2 z-20 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full text-foreground md:flex"><ArrowLeft size={18}/></button>
-    <div className="relative flex h-full w-full max-w-7xl flex-col items-center justify-center gap-3 sm:gap-5" onClick={(event) => event.stopPropagation()}>
-      <div className="relative min-h-0 flex-1 w-full overflow-auto">
-        <Image src={photo.src} alt={photo.alt} width={photo.width ?? 1600} height={photo.height ?? 1200} priority sizes="100vw" onClick={() => setZoomed((value) => !value)} className={`mx-auto h-auto max-h-full w-auto max-w-full cursor-zoom-in object-contain transition-transform duration-300 ${zoomed ? "scale-[1.35] cursor-zoom-out" : ""}`}/>
-      </div>
-      <aside className="lightbox-metadata glass z-10 max-h-40 w-full max-w-3xl rounded-t-2xl px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 text-foreground sm:max-h-[65vh] sm:rounded-xl sm:p-4 sm:absolute sm:bottom-5 sm:left-5 sm:w-[min(350px,calc(100%-2.5rem))]">
-        <p className="meta-label text-muted-foreground">{photo.collection ?? "[ADD PHOTO COLLECTION]"} · {String(photoIndex + 1).padStart(2, "0")} / {String(photos.length).padStart(2, "0")}</p>
-        <h2 className="mt-2 font-display text-2xl leading-tight">{photo.title}</h2>
-        <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-muted-foreground"><span>Camera · {photo.camera ?? "[ADD CAMERA]"}</span><span>Lens · {photo.lens ?? "[ADD LENS]"}</span><span>Exposure · {[photo.focalLength ?? "[ADD FOCAL LENGTH]", photo.aperture ?? "[ADD APERTURE]"].join(" · ")}</span><span>ISO · {photo.iso ?? "[ADD ISO]"}</span><span>Date · {photo.captureDate ?? "[ADD CAPTURE DATE]"}</span><span>Location · {photo.location ?? "[ADD LOCATION]"}</span></div>
-        <p className="mt-3 border-t border-border pt-2 text-[11px] text-muted-foreground">Use ← → to browse · Esc to close · tap image to zoom</p>
-      </aside>
-      <button onClick={() => setZoomed((value) => !value)} aria-label={zoomed ? "Fit photograph to screen" : "Zoom photograph"} className="glass absolute bottom-[calc(env(safe-area-inset-bottom)+10.5rem)] right-3 z-20 flex h-11 w-11 items-center justify-center rounded-full text-foreground sm:bottom-6 sm:right-6"><Expand size={17}/></button>
-    </div>
-    <button onClick={(event) => { event.stopPropagation(); change(1); }} aria-label="Next photograph" className="glass absolute right-3 top-1/2 z-20 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full text-foreground md:flex"><ArrowRight size={18}/></button>
-  </motion.div>;
+type GalleryFrame = {
+  image: GalleryImage;
+  index: number;
+  rect?: Rect;
+  highResolution: boolean;
+};
+
+/**
+ * One frame renders an optimised thumbnail and, when it is the focused
+ * photograph, the full resolution original on top of it. The two layers ask
+ * the optimiser for very different widths, so they are genuinely different
+ * assets rather than the same file twice.
+ */
+function GalleryImageView({ image, highResolution, className, sizes, onLoad }: {
+  image: GalleryImage;
+  highResolution: boolean;
+  className?: string;
+  sizes: string;
+  onLoad?: (width: number, height: number) => void;
+}) {
+  const [originalReady, setOriginalReady] = useState(false);
+
+  /* A new identity starts from the thumbnail again. */
+  useEffect(() => { setOriginalReady(false); }, [image.src]);
+
+  return <>
+    <Image
+      src={image.thumbnail || image.src}
+      alt={image.alt}
+      fill
+      sizes={sizes}
+      className={`spatial-image spatial-thumb${className ? ` ${className}` : ""}`}
+      onLoad={(event) => { const element = event.currentTarget; onLoad?.(element.naturalWidth, element.naturalHeight); }}
+    />
+    {highResolution && <Image
+      src={image.src}
+      alt=""
+      fill
+      sizes="100vw"
+      className={`spatial-image spatial-original${originalReady ? " is-ready" : ""}`}
+      onLoad={() => setOriginalReady(true)}
+    />}
+  </>;
 }
 
-function PhotoItem({ photo, index, onSelect }: { photo: Photograph; index: number; onSelect: () => void }) {
-  const spans = [7, 5, 5, 4, 4, 4];
-  return <motion.button layout onClick={onSelect} aria-label={`Open photograph: ${photo.title}`} style={{ gridColumn: `span ${spans[index] ?? 6}` }} className="edge-fade group relative block w-full overflow-hidden bg-[var(--page-alt)] text-left">
-    <Image src={photo.thumbnail ?? photo.src} alt={photo.alt} width={photo.width ?? 1600} height={photo.height ?? 1200} sizes="(max-width: 767px) 100vw, (max-width: 1100px) 50vw, 60vw" className="relative z-0 block h-auto w-full object-contain"/>
-    <div className="image-caption absolute inset-x-3 bottom-3 translate-y-2 px-3 py-2 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 sm:inset-x-4 sm:bottom-4"><span className="meta-label text-accent">{photo.collection ?? "[ADD PHOTO COLLECTION]"}</span><p className="mt-1 font-display text-lg text-foreground">{photo.title}</p></div>
-    <span className="floating-control absolute right-3 top-3 rounded-full px-2.5 py-1 text-[10px] text-foreground">{String(index + 1).padStart(2, "0")}</span>
-  </motion.button>;
+/** The optimised URL the pipeline serves for a given width. */
+function optimisedUrl(src: string, width: number): string {
+  return `/_next/image?url=${encodeURIComponent(src)}&w=${width}&q=75`;
+}
+
+/** Height of the small viewport (100svh): stable while mobile browser chrome slides. */
+function measureSmallViewportHeight() {
+  if (typeof window === "undefined") return 0;
+  if (typeof CSS === "undefined" || !CSS.supports("height", "100svh")) return window.innerHeight;
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:fixed;top:0;left:0;width:0;height:100svh;visibility:hidden;pointer-events:none;";
+  document.body.appendChild(probe);
+  const height = probe.getBoundingClientRect().height;
+  probe.remove();
+  return height || window.innerHeight;
+}
+
+/** Thumbnail request width, bucketed so small resizes do not refetch. */
+function thumbnailSizes(rect?: Rect) {
+  if (!rect) return "(max-width: 639px) 100vw, 40vw";
+  return `${Math.ceil(rect.width / 160) * 160}px`;
+}
+
+/** Native scrollbar width, measured independently of the current overflow state. */
+function measureScrollbarWidth() {
+  if (typeof window === "undefined") return 0;
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:absolute;top:-9999px;left:-9999px;width:100px;height:100px;overflow:scroll;visibility:hidden;";
+  document.body.appendChild(probe);
+  const width = probe.offsetWidth - probe.clientWidth;
+  probe.remove();
+  return width;
 }
 
 export function PhotoGallery({ preview = false }: { preview?: boolean }) {
-  const [photos, setPhotos] = useState(photographs);
-  const [selected, setSelected] = useState<number | null>(null);
+  /* The one canonical collection. Both layouts read from it. */
+  const [images, setImages] = useState<GalleryImage[]>(() => buildGalleryCollection(photographs));
+  const [focusedImageId, setFocusedImageId] = useState<string | null>(null);
   const [collection, setCollection] = useState("All photographs");
-  const close = useCallback(() => setSelected(null), []);
-  const change = useCallback((index: number) => setSelected(index), []);
+  const [stageWidth, setStageWidth] = useState(0);
+  const [viewport, setViewport] = useState({ width: 0, height: 0, smallHeight: 0 });
+  const [locked, setLocked] = useState(false);
+
+  const stageRef = useRef<HTMLDivElement>(null);
+  const galleryRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const framesRef = useRef(new Map<string, HTMLButtonElement>());
+  const flipFromRef = useRef<Map<string, DOMRect> | null>(null);
+  const panelFromRef = useRef<DOMRect | null>(null);
+  const panelSeenRef = useRef(false);
+  const lockedRef = useRef(false);
+  const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const anchorRef = useRef<{ id: string; offset: number } | null>(null);
+  const resizeAnchorRef = useRef<{ id: string; offset: number } | null>(null);
+  const restoreRef = useRef(false);
+  const [settledFocusId, setSettledFocusId] = useState<string | null>(null);
+  const mobileTouchRef = useRef<{ x: number; y: number } | null>(null);
+
+  /* Keep the collection in step with the server. */
   useEffect(() => {
     let active = true;
-    fetch("/api/photography/photos").then((response) => response.json()).then((result: { photos?: Photograph[] }) => { if (active && result.photos?.length) setPhotos((current) => [...current, ...result.photos!]); }).catch(() => undefined);
-    const onAdded = (event: Event) => { const photo = (event as CustomEvent<Photograph>).detail; if (photo) setPhotos((current) => [photo, ...current]); };
+    fetch("/api/photography/photos").then((response) => response.json()).then((result: { photos?: Parameters<typeof buildGalleryCollection>[0] }) => {
+      if (active && result.photos?.length) setImages((current) => mergeGalleryImages(current, buildGalleryCollection(result.photos!)));
+    }).catch(() => undefined);
+    const onAdded = (event: Event) => {
+      const photo = (event as CustomEvent<Parameters<typeof buildGalleryCollection>[0][number]>).detail;
+      if (photo) setImages((current) => mergeGalleryImages(current, buildGalleryCollection([photo])));
+    };
+    const onDeleted = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string; src?: string }>).detail;
+      if (!detail) return;
+      setImages((current) => current.filter((image) => image.id !== detail.id && image.src !== detail.src));
+    };
     window.addEventListener("photograph-added", onAdded);
-    return () => { active = false; window.removeEventListener("photograph-added", onAdded); };
+    window.addEventListener("photograph-deleted", onDeleted);
+    return () => { active = false; window.removeEventListener("photograph-added", onAdded); window.removeEventListener("photograph-deleted", onDeleted); };
   }, []);
-  const collections = ["All photographs", ...Array.from(new Set(photos.map((photo) => photo.collection).filter((value): value is string => Boolean(value))))];
-  const visiblePhotos = collection === "All photographs" ? photos : photos.filter((photo) => photo.collection === collection);
+
+  const collections = useMemo(() => ["All photographs", ...Array.from(new Set(images.map((image) => image.collection).filter(Boolean)))], [images]);
+
+  const visibleImages = useMemo(() => {
+    const filtered = collection === "All photographs" ? images : images.filter((image) => image.collection === collection);
+    return filtered.map((image, index) => ({ ...image, title: `Nature study ${String(index + 1).padStart(2, "0")}` }));
+  }, [images, collection]);
+
+  const focusedIndex = galleryIndex(visibleImages, focusedImageId);
+  const focused = focusedIndex >= 0 ? visibleImages[focusedIndex] : null;
+  const isMobile = viewport.width > 0 && viewport.width < MOBILE_BREAKPOINT;
+  const mobileFocus = focused !== null && isMobile;
+
+  /* If the focused photograph is removed, step to the neighbour that took its place. */
+  const lastFocusedIndex = useRef(0);
+  useEffect(() => { if (focusedIndex >= 0) lastFocusedIndex.current = focusedIndex; }, [focusedIndex]);
+  useEffect(() => {
+    if (!focusedImageId) return;
+    if (visibleImages.some((image) => image.id === focusedImageId)) return;
+    const fallback = visibleImages[Math.min(lastFocusedIndex.current, visibleImages.length - 1)];
+    setFocusedImageId(fallback ? fallback.id : null);
+  }, [visibleImages, focusedImageId]);
+
+  useIsomorphicLayoutEffect(() => {
+    const element = stageRef.current;
+    if (!element) return;
+    const update = () => setStageWidth(element.getBoundingClientRect().width);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  useIsomorphicLayoutEffect(() => {
+    const update = () => {
+      const next = { width: window.innerWidth, height: window.innerHeight, smallHeight: measureSmallViewportHeight() };
+      setViewport((current) => current.width === next.width && current.height === next.height && Math.abs(current.smallHeight - next.smallHeight) < 0.5 ? current : next);
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    return () => { window.removeEventListener("resize", update); window.removeEventListener("orientationchange", update); };
+  }, []);
+
+  /* The overview: optimal justified rows. Mobile proportions follow the
+     viewport, and the 70svh ceiling follows the small viewport height. */
+  const overview = useMemo(() => {
+    if (!stageWidth || !visibleImages.length) return null;
+    return layoutGallery(visibleImages, {
+      width: stageWidth,
+      gap: GALLERY_GAP,
+      viewportHeight: viewport.smallHeight || undefined,
+      profile: isMobile ? "mobile" : "desktop",
+    });
+  }, [visibleImages, stageWidth, viewport.smallHeight, isMobile]);
+
+  const focusLayout = useMemo(() => {
+    if (!focused || !viewport.width || !viewport.height) return null;
+    return layoutFocusDesktop(visibleImages, focused.id, { width: viewport.width, height: viewport.height });
+  }, [visibleImages, focused, viewport]);
+
+  const mobileLayout = useMemo(() => {
+    if (!focused || !viewport.width) return null;
+    return layoutFocusMobile(visibleImages, focused.id, { width: viewport.width, height: viewport.height, gap: 8, rowCount: 3 });
+  }, [visibleImages, focused, viewport]);
+
+  /*
+   * Keep every moving frame on its thumbnail during FLIP. Promote only the
+   * settled hero to the original after the spatial transition has completed.
+   */
+  useEffect(() => {
+    setSettledFocusId(null);
+    if (!focusedImageId) return;
+    const timer = window.setTimeout(
+      () => setSettledFocusId(focusedImageId),
+      TRANSITION_MS + 100,
+    );
+    return () => window.clearTimeout(timer);
+  }, [focusedImageId]);
+
+  const highResolutionIds = useMemo(
+    () => new Set(settledFocusId ? [settledFocusId] : []),
+    [settledFocusId],
+  );
+
+  /* The neighbours are prefetched at full resolution without changing them. */
+  useEffect(() => {
+    if (!focused) return;
+    const { previousId, nextId } = neighbourIds(visibleImages, focused.id);
+    for (const id of [previousId, nextId]) {
+      if (!id) continue;
+      const image = visibleImages.find((item) => item.id === id);
+      if (!image) continue;
+      const preload = new window.Image();
+      preload.src = optimisedUrl(image.src, 1920);
+    }
+  }, [focused, visibleImages]);
+
+  const captureFrames = useCallback(() => {
+    const measured = new Map<string, DOMRect>();
+    framesRef.current.forEach((element, key) => measured.set(key, element.getBoundingClientRect()));
+    return measured;
+  }, []);
+
+  /** The topmost visible photograph. */
+  const topmostVisibleFrame = useCallback(() => {
+    let anchor: { id: string; offset: number } | null = null;
+    framesRef.current.forEach((element, key) => {
+      const rect = element.getBoundingClientRect();
+      if (rect.bottom <= 0 || rect.top >= window.innerHeight || rect.height <= 0) return;
+      if (!anchor || rect.top < anchor.offset) anchor = { id: key, offset: rect.top };
+    });
+    return anchor as { id: string; offset: number } | null;
+  }, []);
+
+  /** The topmost visible photograph is the anchor the exit restores. */
+  const captureAnchor = useCallback(() => {
+    anchorRef.current = topmostVisibleFrame();
+  }, [topmostVisibleFrame]);
+
+  const lock = useCallback(() => {
+    lockedRef.current = true;
+    setLocked(true);
+    if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+    lockTimerRef.current = setTimeout(() => { lockedRef.current = false; setLocked(false); }, TRANSITION_MS + COOLDOWN_MS);
+  }, []);
+
+  /** Enter the focused gallery, remembering where the reader was. */
+  const focusImage = useCallback((id: string) => {
+    if (lockedRef.current) return;
+    if (!visibleImages.some((image) => image.id === id)) return;
+    if (focusedImageId === null) captureAnchor();
+    flipFromRef.current = captureFrames();
+    panelFromRef.current = panelRef.current?.getBoundingClientRect() ?? null;
+    lock();
+    setFocusedImageId(id);
+  }, [captureAnchor, captureFrames, focusedImageId, lock, visibleImages]);
+
+  /** Move to the previous or next photograph, wrapping around the ends. */
+  const stepFocus = useCallback((direction: -1 | 1) => {
+    if (!focused) return;
+    const { previousId, nextId } = neighbourIds(visibleImages, focused.id);
+    const target = direction === -1 ? previousId : nextId;
+    if (!target) return;
+    if (lockedRef.current) return;
+    flipFromRef.current = captureFrames();
+    panelFromRef.current = panelRef.current?.getBoundingClientRect() ?? null;
+    lock();
+    setFocusedImageId(target);
+  }, [captureFrames, focused, lock, visibleImages]);
+
+  /** Leave the focused gallery and return to the closed one where it was. */
+  const release = useCallback(() => {
+    if (lockedRef.current) return;
+    flipFromRef.current = captureFrames();
+    panelFromRef.current = panelRef.current?.getBoundingClientRect() ?? null;
+    restoreRef.current = true;
+    lock();
+    setFocusedImageId(null);
+  }, [captureFrames, lock]);
+
+  useEffect(() => () => { if (lockTimerRef.current) clearTimeout(lockTimerRef.current); }, []);
+
+  /* On desktop the composition covers the page, so the document is held still
+     and the scrollbar width is compensated so nothing shifts. */
+  useEffect(() => {
+    if (!focused || mobileFocus) return;
+    const root = document.documentElement;
+    const previousOverflow = document.body.style.overflow;
+    root.style.setProperty("--lightbox-scrollbar-width", `${measureScrollbarWidth()}px`);
+    root.setAttribute("data-lightbox-open", "true");
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      root.removeAttribute("data-lightbox-open");
+      root.style.removeProperty("--lightbox-scrollbar-width");
+    };
+  }, [focused, mobileFocus]);
+
+  /* The destination of the current composition, whether that is the closed
+     gallery or the focused one. Both transitions derive from this. */
+  const destinationRects = useMemo(() => {
+    if (focused && !mobileFocus) return focusLayout?.rects ?? null;
+    return overview?.rects ?? null;
+  }, [focused, mobileFocus, focusLayout, overview]);
+
+  /* FLIP: the frames travel from where they are to where the new layout wants them. */
+  useIsomorphicLayoutEffect(() => {
+    if (restoreRef.current) {
+      restoreRef.current = false;
+      const anchor = anchorRef.current;
+      const element = anchor ? framesRef.current.get(anchor.id) : null;
+      if (anchor && element) {
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          const delta = element.getBoundingClientRect().top - anchor.offset;
+          if (Math.abs(delta) < 0.5) break;
+          window.scrollBy(0, delta);
+        }
+      }
+    }
+
+    const from = flipFromRef.current;
+    flipFromRef.current = null;
+    if (!from) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const duration = reduce ? 0 : TRANSITION_MS;
+    const leaving = !focused;
+
+    framesRef.current.forEach((element, key) => {
+      const before = from.get(key);
+      if (!before) return;
+      const after = element.getBoundingClientRect();
+      if (after.width < 1 || after.height < 1) return;
+      const dx = before.left - after.left;
+      const dy = before.top - after.top;
+      const scale = before.width / after.width;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(scale - 1) < 0.002) return;
+      element.animate(
+        [{ transform: `translate(${dx}px, ${dy}px) scale(${scale})` }, { transform: "translate(0px, 0px) scale(1)" }],
+        { duration, easing: EASING, fill: "backwards" },
+      );
+    });
+
+    const panel = panelRef.current;
+    const panelBefore = panelFromRef.current;
+    panelFromRef.current = null;
+    if (panel) {
+      const entering = !panelSeenRef.current && !leaving;
+      panelSeenRef.current = !leaving;
+      const after = panel.getBoundingClientRect();
+      const dx = panelBefore ? panelBefore.left - after.left : 0;
+      const dy = panelBefore ? panelBefore.top - after.top : 0;
+      panel.animate(
+        leaving
+          ? [{ opacity: 1, transform: `translate(${dx}px, ${dy}px)` }, { opacity: 0, transform: "translate(0px, 0px)" }]
+          : [{ opacity: entering ? 0 : 0.6, transform: `translate(${dx}px, ${dy + (entering ? 12 : 6)}px)` }, { opacity: 1, transform: "translate(0px, 0px)" }],
+        { duration: reduce ? 0 : Math.round(duration * 0.7), easing: EASING, fill: "backwards" },
+      );
+    } else {
+      panelSeenRef.current = false;
+    }
+  }, [destinationRects, focused, mobileFocus]);
+
+  /* While reading the overview, remember the topmost photograph so a resize
+     can reflow the rows without moving the reader. Only once the gallery has
+     scrolled past the top of the viewport; above it, nothing needs holding. */
+  useEffect(() => {
+    if (focused) return;
+    let frame = 0;
+    const record = () => {
+      frame = 0;
+      const stage = stageRef.current;
+      resizeAnchorRef.current = stage && stage.getBoundingClientRect().top < 0 ? topmostVisibleFrame() : null;
+    };
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(record); };
+    record();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); if (frame) cancelAnimationFrame(frame); };
+  }, [focused, overview, topmostVisibleFrame]);
+
+  /* A new overview geometry (resize, filter, upload) keeps that photograph
+     where it was. Focus transitions restore their own anchor instead. */
+  useIsomorphicLayoutEffect(() => {
+    if (focused || flipFromRef.current || restoreRef.current) return;
+    const anchor = resizeAnchorRef.current;
+    const element = anchor ? framesRef.current.get(anchor.id) : null;
+    if (!anchor || !element) return;
+    const delta = element.getBoundingClientRect().top - anchor.offset;
+    if (Math.abs(delta) >= 0.5) window.scrollBy(0, delta);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overview]);
+
+  /* Keyboard: the gallery loops back to the other end. */
+  useEffect(() => {
+    if (!focused) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); release(); return; }
+      if (event.key === "ArrowLeft") { event.preventDefault(); stepFocus(-1); return; }
+      if (event.key === "ArrowRight") { event.preventDefault(); stepFocus(1); }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [focused, release, stepFocus]);
+
+  /* Swipe navigation, without stealing the vertical page scroll. */
+  const onTouchStart = useCallback((event: React.TouchEvent) => {
+    const touch = event.touches[0];
+    mobileTouchRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+  }, []);
+  const onTouchEnd = useCallback((event: React.TouchEvent) => {
+    const start = mobileTouchRef.current;
+    mobileTouchRef.current = null;
+    const touch = event.changedTouches[0];
+    if (!start || !touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy)) return;
+    stepFocus(dx > 0 ? -1 : 1);
+  }, [stepFocus]);
+
+  const fields = focused ? metaFieldsFor(focused) : [];
+  const panelPlacement = focusLayout && !mobileFocus ? focusLayout.panelPlacement : "below";
+  const panelRect = focusLayout && !mobileFocus ? focusLayout.panel : null;
+
+  const renderFrame = (image: GalleryImage, rect?: Rect) => (
+    <button
+      key={image.id}
+      ref={(element) => { if (element) framesRef.current.set(image.id, element); else framesRef.current.delete(image.id); }}
+      type="button"
+      className="spatial-frame"
+      data-key={image.id}
+      data-focused={focusedImageId === image.id ? "true" : "false"}
+      style={rect ? ({ left: rect.x, top: rect.y, width: rect.width, height: rect.height } as CSSProperties) : undefined}
+      onClick={(event) => { event.stopPropagation(); focusImage(image.id); }}
+      aria-label={`Open photograph: ${image.title}`}
+    >
+      <GalleryImageView image={image} highResolution={highResolutionIds.has(image.id)} sizes={thumbnailSizes(rect ?? overview?.rects.get(image.id))} />
+    </button>
+  );
+
   return <>
-    {!preview && collections.length > 2 && <div className="project-filter-glass mb-5 inline-flex flex-wrap gap-1 rounded-full p-1" role="group" aria-label="Filter photographs by collection">{collections.map((item) => <button key={item} onClick={() => { setCollection(item); setSelected(null); }} aria-pressed={collection === item} className={`rounded-full px-4 py-2 text-xs transition ${collection === item ? "bg-highlight text-foreground" : "text-muted-foreground hover:text-foreground"}`}>{item}</button>)}</div>}
-    <div className="photo-grid grid grid-cols-1 items-start gap-4 sm:grid-cols-2 md:grid-cols-12 md:gap-5">{visiblePhotos.map((photo, index) => <PhotoItem key={`${photo.src}-${index}`} photo={photo} index={index} onSelect={() => setSelected(index)}/>)}</div>
+    {!preview && collections.length > 2 && <div className="filter-lit mb-5 inline-flex flex-wrap gap-1 rounded-full p-1" role="group" aria-label="Filter photographs by collection">{collections.map((item) => <button key={item} onClick={() => { setCollection(item); setFocusedImageId(null); }} aria-pressed={collection === item} className={`rounded-full px-4 py-2 text-xs transition ${collection === item ? "bg-highlight text-foreground" : "text-muted-foreground hover:text-foreground"}`}>{item}</button>)}</div>}
+
+    <div ref={stageRef} className="spatial-gallery-stage" style={overview ? { height: `${overview.height}px` } : undefined}>
+      {mobileFocus ? <MobileFocus
+        images={visibleImages}
+        focused={focused!}
+        layout={mobileLayout!}
+        highResolutionIds={highResolutionIds}
+        onSelect={focusImage}
+        onClose={release}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      /> : <div
+        ref={galleryRef}
+        className="spatial-gallery"
+        data-mode={focused ? "focus" : "grid"}
+        data-ready={overview ? "true" : "false"}
+        onClick={focused ? (event) => { if (event.target === event.currentTarget) release(); } : undefined}
+      >
+        {visibleImages.map((image) => renderFrame(image, focused && focusLayout && !mobileFocus ? focusLayout.rects.get(image.id) : overview?.rects.get(image.id)))}
+
+        {focused && !mobileFocus && panelRect && <aside
+          ref={panelRef}
+          className="spatial-panel surface-lit"
+          data-placement={panelPlacement}
+          style={{ left: panelRect.x, top: panelRect.y, width: panelRect.width, height: panelRect.height }}
+        >
+          <div className="spatial-panel-head">
+            <p className="meta-label text-muted-foreground">{focused?.collection} · <span className="spatial-counter" aria-live="polite">{String(focusedIndex + 1).padStart(2, "0")} / {String(visibleImages.length).padStart(2, "0")}</span></p>
+            <h2 className="spatial-panel-title font-display leading-tight">{focused?.title}</h2>
+          </div>
+          <div className="photo-exif-grid grid gap-x-3 gap-y-1.5 text-[11px] leading-snug text-muted-foreground">
+            {fields.map((field) => <div key={field.label} className="min-w-0"><p className="meta-label mb-0.5 text-muted-foreground">{field.label}</p><p className="spatial-panel-value text-foreground">{field.value}</p></div>)}
+          </div>
+        </aside>}
+
+        {focused && !mobileFocus && <>
+          <button type="button" onClick={() => stepFocus(-1)} disabled={locked} aria-label="Previous photograph" className="spatial-nav spatial-nav-previous surface-lit"><ArrowLeft size={18}/></button>
+          <button type="button" onClick={() => stepFocus(1)} disabled={locked} aria-label="Next photograph" className="spatial-nav spatial-nav-next surface-lit"><ArrowRight size={18}/></button>
+          <button type="button" onClick={release} aria-label="Close photograph" className="spatial-close surface-lit"><X size={20}/></button>
+        </>}
+      </div>}
+    </div>
+
     {preview && <div className="mt-7 flex justify-end"><a href="/photography" className="meta-label text-accent transition-colors hover:text-foreground">Enter the photography journal ↗</a></div>}
-    <AnimatePresence>{selected !== null && <PhotoLightbox key={selected} photos={visiblePhotos} photoIndex={selected} onClose={close} onChange={change}/>}</AnimatePresence>
   </>;
+}
+
+function MobileFocus({ images, focused, layout, highResolutionIds, onSelect, onClose, onTouchStart, onTouchEnd }: {
+  images: GalleryImage[];
+  focused: GalleryImage;
+  layout: ReturnType<typeof layoutFocusMobile>;
+  highResolutionIds: Set<string>;
+  onSelect: (id: string) => void;
+  onClose: () => void;
+  onTouchStart: (event: React.TouchEvent) => void;
+  onTouchEnd: (event: React.TouchEvent) => void;
+}) {
+  const rowRefs = useRef(new Map<string, HTMLDivElement>());
+  const stageRef = useRef<HTMLDivElement>(null);
+  const enteredRef = useRef(false);
+  const fields = metaFieldsFor(focused);
+
+  /* Bring the composition into view the first time it opens. */
+  useEffect(() => {
+    if (enteredRef.current) return;
+    enteredRef.current = true;
+    stageRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, []);
+
+  /* Bring the focused thumbnail into view without moving the document. */
+  useEffect(() => {
+    for (const row of layout.rows) {
+      const element = rowRefs.current.get(row.id);
+      if (!element) continue;
+      const target = row.items.find((item) => item.id === focused.id);
+      if (!target) continue;
+      const offset = element.scrollLeft;
+      const position = element.querySelector<HTMLElement>(`[data-thumb="${target.id}"]`);
+      if (position) element.scrollTo({ left: offset + position.offsetLeft - element.clientWidth / 2 + position.clientWidth / 2, behavior: "smooth" });
+    }
+  }, [focused.id, layout.rows]);
+
+  return <div className="spatial-mobile">
+    <nav className="spatial-navigator" aria-label="Photograph navigator">
+      {layout.rows.map((row) => <div key={row.id} className="spatial-navigator-row" ref={(element) => { if (element) rowRefs.current.set(row.id, element); else rowRefs.current.delete(row.id); }}>
+        {row.items.map((item) => <button
+          key={item.id}
+          type="button"
+          data-thumb={item.id}
+          className="spatial-thumb-frame"
+          data-focused={item.id === focused.id ? "true" : "false"}
+          style={{ height: `${row.height}px`, width: `${Math.round(row.height * item.aspectRatio)}px` }}
+          onClick={() => onSelect(item.id)}
+          aria-label={`Open photograph: ${item.title}`}
+        >
+          <Image src={item.thumbnail} alt="" fill sizes="120px" className="spatial-image spatial-thumb"/>
+        </button>)}
+      </div>)}
+    </nav>
+
+    <div className="spatial-mobile-stage" ref={stageRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      {layout.previews.map((preview) => {
+        const image = images.find((item) => item.id === preview.id);
+        if (!image) return null;
+        return <div key={preview.id} className="spatial-edge-preview" style={{ left: preview.rect.x, top: preview.rect.y, width: preview.rect.width, height: preview.rect.height }}>
+          <Image src={image.thumbnail} alt="" fill sizes="200px" className="spatial-image spatial-thumb"/>
+        </div>;
+      })}
+      <div className="spatial-mobile-main" style={{ height: layout.main.height }}>
+        <GalleryImageView image={focused} highResolution={highResolutionIds.has(focused.id)} sizes="100vw"/>
+      </div>
+    </div>
+
+    <aside className="spatial-panel spatial-panel-mobile">
+      <div className="spatial-panel-head">
+        <p className="meta-label text-muted-foreground">{focused.collection} · <span className="spatial-counter" aria-live="polite">{String(galleryIndex(images, focused.id) + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}</span></p>
+        <h2 className="spatial-panel-title font-display leading-tight">{focused.title}</h2>
+      </div>
+      <div className="photo-exif-grid grid gap-x-3 gap-y-1.5 text-[11px] leading-snug text-muted-foreground">
+        {fields.map((field) => <div key={field.label} className="min-w-0"><p className="meta-label mb-0.5 text-muted-foreground">{field.label}</p><p className="spatial-panel-value text-foreground">{field.value}</p></div>)}
+      </div>
+    </aside>
+
+    <button type="button" onClick={() => onSelect(neighbourIds(images, focused.id).previousId ?? focused.id)} aria-label="Previous photograph" className="spatial-nav spatial-nav-previous surface-lit"><ArrowLeft size={18}/></button>
+    <button type="button" onClick={() => onSelect(neighbourIds(images, focused.id).nextId ?? focused.id)} aria-label="Next photograph" className="spatial-nav spatial-nav-next surface-lit"><ArrowRight size={18}/></button>
+    <button type="button" onClick={onClose} aria-label="Close photograph" className="spatial-close surface-lit"><X size={20}/></button>
+  </div>;
 }

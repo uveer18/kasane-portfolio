@@ -35,7 +35,7 @@ export function DotBackground({
     >
       {showGradient && (
         <div 
-          className="absolute inset-0 bg-background/50 [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" 
+          className="absolute inset-0 bg-background [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" 
           aria-hidden="true"
         />
       )}

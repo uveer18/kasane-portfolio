@@ -42,8 +42,8 @@ export function Navigation() {
   const currentState = (section: string, href: string): "page" | "location" | undefined => pathname === href ? "page" : pathname === "/" && activeSection === section ? "location" : undefined;
 
   return (
-    <header id="navbar" className="fixed inset-x-0 top-4 z-40 px-3 sm:top-5 sm:px-6">
-      <nav aria-label="Main navigation" className="nav-glass mx-auto flex h-14 max-w-5xl items-center justify-between rounded-full px-4 sm:px-6">
+    <header id="navbar" className="fixed inset-x-0 top-4 z-40 px-[var(--page-gutter)] sm:top-5">
+      <nav aria-label="Main navigation" className="nav-lit lum-halo mx-auto flex h-14 w-full max-w-6xl items-center justify-between rounded-full px-4 sm:px-6">
         <Link href="/#home" className="font-display text-lg text-foreground" onClick={() => setOpen(false)}>
           Udayveer Singh<span className="ml-2 text-accent">.</span>
         </Link>
@@ -58,8 +58,8 @@ export function Navigation() {
           ))}
         </ul>
         <div className="flex items-center gap-1">
-          <Link href="/contact" className="hidden rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition hover:bg-accent hover:text-white sm:inline-flex">Contact</Link>
-          <button onClick={toggleTheme} className="floating-control rounded-full p-2 text-foreground transition hover:text-accent" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>
+          <Link href="/contact" className="btn-lit hidden rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition hover:bg-accent hover:text-white sm:inline-flex">Contact</Link>
+          <button onClick={(event) => toggleTheme(event.currentTarget)} className="floating-control rounded-full p-2 text-foreground transition hover:text-bengara" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>
             {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
           </button>
           <button onClick={() => setOpen(!open)} className="rounded-full p-2 text-muted-foreground md:hidden" aria-label={open ? "Close navigation menu" : "Open navigation menu"} aria-expanded={open}>
@@ -69,7 +69,7 @@ export function Navigation() {
       </nav>
       <AnimatePresence>
         {open && (
-          <motion.nav aria-label="Mobile navigation" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="nav-glass mx-3 mt-2 rounded-2xl p-3 md:hidden">
+          <motion.nav aria-label="Mobile navigation" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="nav-lit lum-halo mx-auto mt-2 w-full max-w-6xl rounded-2xl p-3 md:hidden">
             {navLinks.map((link) => <Link key={link.name} href={link.href} onClick={() => setOpen(false)} aria-current={currentState(link.section, link.href)} className={`block rounded-xl px-4 py-3 text-sm hover:bg-highlight hover:text-foreground ${isActive(link.section, link.href) ? "bg-highlight text-foreground" : "text-muted-foreground"}`}>{link.name}</Link>)}
             <Link href="/contact" onClick={() => setOpen(false)} className="mt-1 block rounded-xl px-4 py-3 text-sm text-accent">Contact ↗</Link>
           </motion.nav>

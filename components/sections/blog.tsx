@@ -63,8 +63,8 @@ function BlogCard({ post }: { post: (typeof posts)[number] }) {
 
 export function Blog() {
   return (
-    <ViewportFadeSection id="blog" className="px-6 py-24 md:py-32">
-      <div className="mx-auto max-w-4xl">
+    <ViewportFadeSection id="blog" className="px-[var(--page-gutter)] py-24 md:py-32">
+      <div className="page-shell">
         <FadeIn>
           <div className="mb-16 flex items-center gap-4">
             <span className="h-px flex-1 bg-border" />
@@ -82,7 +82,7 @@ export function Blog() {
           </p>
         </FadeIn>
 
-        <FadeInStagger className="divide-y divide-border rounded-xl border border-border bg-card p-2">
+        <FadeInStagger className="card-lit divide-y divide-border rounded-xl border p-2">
           {posts.map((post) => (
             <FadeInStaggerItem key={post.title} className="px-4">
               <BlogCard post={post} />

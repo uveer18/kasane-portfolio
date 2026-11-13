@@ -1,8 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
-import { ArrowUpRight, ImagePlus, LockKeyhole } from "lucide-react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
+import { ImagePlus, LockKeyhole, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+
+type PhotoRecord = { src: string; title?: string };
 
 export function PhotoUploadLogin() {
   const [key, setKey] = useState("");
@@ -12,8 +14,17 @@ export function PhotoUploadLogin() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [dimensions, setDimensions] = useState({ width: "", height: "" });
+  const [records, setRecords] = useState<PhotoRecord[]>([]);
 
-  useEffect(() => { fetch("/api/photography/admin").then((response) => response.json()).then((result: { authenticated?: boolean }) => { const valid = Boolean(result.authenticated); setAuthenticated(valid); if (valid) setOpen(true); }).catch(() => undefined); }, []);
+  const loadRecords = useCallback(async () => {
+    try {
+      const response = await fetch("/api/photography/photos");
+      const result = await response.json();
+      if (Array.isArray(result?.photos)) setRecords(result.photos.map((photo: PhotoRecord) => ({ src: photo.src, title: photo.title })));
+    } catch { /* the list is optional */ }
+  }, []);
+
+  useEffect(() => { fetch("/api/photography/admin").then((response) => response.json()).then((result: { authenticated?: boolean }) => { const valid = Boolean(result.authenticated); setAuthenticated(valid); if (valid) { setOpen(true); loadRecords(); } }).catch(() => undefined); }, [loadRecords]);
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setStatus("");
@@ -21,8 +32,22 @@ export function PhotoUploadLogin() {
       const response = await fetch("/api/photography/admin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Could not sign in.");
-      setAuthenticated(true); setKey(""); setStatus("Signed in. Add the photograph details below.");
+      setAuthenticated(true); setKey(""); setStatus("Signed in. Add the photograph details below."); loadRecords();
     } catch (error) { setStatus(error instanceof Error ? error.message : "Could not sign in."); }
+    finally { setBusy(false); }
+  }
+
+  async function remove(record: PhotoRecord) {
+    if (!window.confirm("Remove this photograph from the journal? This cannot be undone.")) return;
+    setBusy(true); setStatus("Removing photograph…");
+    try {
+      const response = await fetch("/api/photography/photos", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ src: record.src }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Could not remove the photograph.");
+      setRecords((current) => current.filter((item) => item.src !== record.src));
+      window.dispatchEvent(new CustomEvent("photograph-deleted", { detail: { src: record.src } }));
+      setStatus("Photograph removed."); loadRecords();
+    } catch (error) { setStatus(error instanceof Error ? error.message : "Could not remove the photograph."); }
     finally { setBusy(false); }
   }
 
@@ -43,19 +68,32 @@ export function PhotoUploadLogin() {
 
   async function signOut() { await fetch("/api/photography/admin", { method: "DELETE" }); setAuthenticated(false); setStatus("Signed out."); }
 
-  return <section id="photo-admin" className="mt-24 border-t border-border pt-6">
-    <div className="flex justify-end"><button type="button" aria-expanded={open} aria-controls="photo-upload-panel" onClick={() => { setOpen((value) => !value); setStatus(""); }} className="group inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-xs text-muted-foreground transition hover:border-seiji-ink hover:text-seiji-ink"><LockKeyhole size={14}/><span>{open ? "Close photo access" : "Add Photos"}</span><ArrowUpRight size={13} className="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"/></button></div>
+  return <section id="photo-admin" className="mt-10">
+    <div className="flex justify-end"><button type="button" aria-label="Photo journal access" aria-expanded={open} aria-controls="photo-upload-panel" onClick={() => { setOpen((value) => !value); setStatus(""); }} className="floating-control inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition hover:text-foreground"><LockKeyhole size={14}/></button></div>
     <AnimatePresence initial={false}><motion.div id="photo-upload-panel" initial={{ height: 0, opacity: 0 }} animate={{ height: open ? "auto" : 0, opacity: open ? 1 : 0 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: .28, ease: [.22, 1, .36, 1] }} className="overflow-hidden">
-      {open && <div className="ml-auto mt-6 w-full max-w-2xl border-t border-border pt-6">
-        {!authenticated ? <form onSubmit={login} className="surface-glass rounded-xl p-5 sm:p-6"><label htmlFor="photo-key" className="meta-label mb-3 flex items-center gap-2 text-muted-foreground"><LockKeyhole size={14}/>Photo journal access</label><div className="flex gap-2"><input id="photo-key" type="password" autoComplete="current-password" required value={key} onChange={(event) => setKey(event.target.value)} placeholder="Enter access key" className="min-w-0 flex-1 rounded-full border border-border bg-background px-4 py-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-seiji-ink"/><button disabled={busy} className="rounded-full bg-primary px-5 py-3 text-sm text-primary-foreground transition hover:bg-accent disabled:opacity-50">{busy ? "Checking…" : "Continue"}</button></div><p className="mt-3 min-h-5 text-xs text-muted-foreground" role="status">{status}</p></form> : <div>
-          <div className="mb-3 flex items-center justify-between"><p className="meta-label text-seiji-ink">Private photo session</p><button type="button" onClick={signOut} className="text-xs text-muted-foreground underline underline-offset-4">Sign out</button></div>
-          <form onSubmit={upload} className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-surface p-5 sm:grid-cols-2 sm:p-6">
+      {open && <div className="ml-auto mt-6 w-full max-w-2xl border-t border-border pt-6">        {!authenticated ? <form onSubmit={login} className="surface-lit rounded-xl p-5 sm:p-6"><label htmlFor="photo-key" className="meta-label mb-3 flex items-center gap-2 text-muted-foreground"><LockKeyhole size={14}/>Photo journal access</label><div className="flex gap-2"><input id="photo-key" type="password" autoComplete="current-password" required value={key} onChange={(event) => setKey(event.target.value)} placeholder="Enter access key" className="min-w-0 flex-1 rounded-full border border-border bg-background px-4 py-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-seiji-ink"/><button disabled={busy} className="rounded-full bg-primary px-5 py-3 text-sm text-primary-foreground transition hover:bg-accent disabled:opacity-50">{busy ? "Checking…" : "Continue"}</button></div><p className="mt-3 min-h-5 text-xs text-muted-foreground" role="status">{status}</p></form> : <div className="photo-admin-grid">
+          <div>
+            <div className="mb-3 flex items-center justify-between"><p className="meta-label text-seiji-ink">Journal photographs</p><button type="button" onClick={signOut} className="text-xs text-muted-foreground underline underline-offset-4">Sign out</button></div>
+            <div className="max-h-72 overflow-y-auto border border-border bg-surface p-3">
+              <ul className="flex flex-col divide-y divide-border">
+                {records.map((record) => <li key={record.src} className="flex items-center justify-between gap-3 py-1.5">
+                  <span className="truncate text-xs text-muted-foreground">{record.src.split("/").pop()}</span>
+                  <button type="button" onClick={() => remove(record)} disabled={busy} aria-label={`Delete ${record.src.split("/").pop()}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition hover:text-bengara-ink disabled:opacity-40"><Trash2 size={13}/></button>
+                </li>)}
+              </ul>
+              {!records.length && <p className="py-2 text-xs text-muted-foreground">No photographs yet.</p>}
+            </div>
+          </div>
+          <div>
+            <p className="meta-label mb-3 text-seiji-ink">Add a photograph</p>
+            <form onSubmit={upload} className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-surface p-5 sm:p-6">
             <label className="sm:col-span-2"><span className="meta-label mb-2 block text-muted-foreground">Photograph file</span><input name="image" type="file" accept="image/jpeg,image/png,image/webp,image/avif" required onChange={(event) => { const file = event.currentTarget.files?.[0]; if (!file) { setDimensions({ width: "", height: "" }); return; } const image = new Image(); const objectUrl = URL.createObjectURL(file); image.onload = () => { setDimensions({ width: String(image.naturalWidth), height: String(image.naturalHeight) }); URL.revokeObjectURL(objectUrl); }; image.onerror = () => { setDimensions({ width: "", height: "" }); URL.revokeObjectURL(objectUrl); }; image.src = objectUrl; }} className="w-full rounded-xl border border-border bg-background p-3 text-sm file:mr-3 file:rounded-full file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-foreground"/></label>
             <input type="hidden" name="width" value={dimensions.width}/><input type="hidden" name="height" value={dimensions.height}/>
-            <Field name="title" label="Title" placeholder="[ADD PHOTO TITLE]" required/><Field name="collection" label="Collection" placeholder="[ADD COLLECTION]"/><Field name="captureDate" label="Capture date" placeholder="[ADD CAPTURE DATE]"/><Field name="location" label="Location" placeholder="[ADD LOCATION]"/><Field name="camera" label="Camera" placeholder="[ADD CAMERA]"/><Field name="lens" label="Lens" placeholder="[ADD LENS]"/><Field name="focalLength" label="Focal length" placeholder="[ADD FOCAL LENGTH]"/><Field name="aperture" label="Aperture" placeholder="[ADD APERTURE]"/><Field name="shutterSpeed" label="Shutter speed" placeholder="[ADD SHUTTER SPEED]"/><Field name="iso" label="ISO" placeholder="[ADD ISO]"/>
+            <Field name="title" label="Caption (optional)" placeholder="Nature study"/><Field name="collection" label="Collection" placeholder="[ADD COLLECTION]"/><Field name="captureDate" label="Capture date" placeholder="[ADD CAPTURE DATE]"/><Field name="location" label="Location" placeholder="[ADD LOCATION]"/><Field name="camera" label="Camera" placeholder="[ADD CAMERA]"/><Field name="lens" label="Lens" placeholder="[ADD LENS]"/><Field name="focalLength" label="Focal length" placeholder="[ADD FOCAL LENGTH]"/><Field name="aperture" label="Aperture" placeholder="[ADD APERTURE]"/><Field name="shutterSpeed" label="Shutter speed" placeholder="[ADD SHUTTER SPEED]"/><Field name="iso" label="ISO" placeholder="[ADD ISO]"/>
             <label className="sm:col-span-2"><span className="meta-label mb-2 block text-muted-foreground">Description / notes</span><textarea name="description" rows={3} placeholder="[ADD PHOTO DESCRIPTION]" className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-seiji-ink"/></label>
-            <div className="sm:col-span-2"><div role="progressbar" aria-label="Photo upload progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} className="h-1 overflow-hidden rounded bg-page-alt"><div className="h-full bg-seiji transition-[width] duration-200" style={{ width: `${progress}%` }}/></div><div className="mt-3 flex items-center justify-between gap-3"><p role="status" className="min-h-5 text-xs text-muted-foreground">{status}</p><button disabled={busy || !dimensions.width} className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-sm text-primary-foreground transition hover:bg-accent disabled:opacity-50"><ImagePlus size={16}/>{busy ? `Uploading ${progress}%` : "Add photograph"}<ArrowUpRight size={14}/></button></div></div>
+            <div className="sm:col-span-2"><div role="progressbar" aria-label="Photo upload progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} className="h-1 overflow-hidden rounded bg-page-alt"><div className="h-full bg-seiji transition-[width] duration-200" style={{ width: `${progress}%` }}/></div><div className="mt-3 flex items-center justify-between gap-3"><p role="status" className="min-h-5 text-xs text-muted-foreground">{status}</p><button disabled={busy || !dimensions.width} className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-sm text-primary-foreground transition hover:bg-accent disabled:opacity-50"><ImagePlus size={16}/>{busy ? `Uploading ${progress}%` : "Add photograph"}</button></div></div>
           </form>
+          </div>
         </div>}
       </div>}
     </motion.div></AnimatePresence>

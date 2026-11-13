@@ -32,13 +32,13 @@ export function StatusBar() {
 
     updateTime();
     const interval = setInterval(updateTime, 1000);
-    
+
     const handleScroll = () => {
       setShowScroll(window.scrollY > 300);
     };
-    
+
     window.addEventListener("scroll", handleScroll);
-    
+
     return () => {
       clearInterval(interval);
       window.removeEventListener("scroll", handleScroll);
@@ -48,23 +48,33 @@ export function StatusBar() {
   useEffect(() => {
     if (!mounted) return;
 
+
     const incrementViews = async () => {
       try {
         const { data, error } = await supabase.rpc("increment_views", {
           row_label: "page_views",
         });
-        
+
         if (error) {
-          console.error("Supabase RPC error (StatusBar):", error);
+          console.error("Supabase RPC failed:", {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+          });
+          return;
         }
-        
-        if (data !== null && data !== undefined) {
+
+        if (typeof data === "number") {
           setViews(data);
+        } else if (data !== null) {
+          setViews(Number(data));
         }
       } catch (err) {
-        console.error("Error syncing views:", err);
+        console.error("Unexpected views counter error:", err);
       }
     };
+
 
     incrementViews();
   }, [mounted]);
@@ -86,7 +96,7 @@ export function StatusBar() {
               exit={{ opacity: 0, scale: 0.8, y: 10 }}
               transition={{ type: "spring", stiffness: 300, damping: 25 }}
               onClick={scrollToTop}
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-border/40 bg-background/70 shadow-2xl backdrop-blur-md transition-colors hover:bg-background/85 sm:h-10 sm:w-10 sm:bg-background/60 sm:backdrop-blur-sm"
+              className="floating-control flex h-11 w-11 items-center justify-center rounded-full text-foreground transition-transform hover:scale-105 sm:h-10 sm:w-10"
               aria-label="Scroll to top"
             >
               <ArrowUp className="h-4 w-4 text-foreground/80 transition-transform group-hover:-translate-y-0.5" />
@@ -105,7 +115,7 @@ export function StatusBar() {
           }}
           onClick={() => setIsStatusExpanded((current) => !current)}
           className={cn(
-            "flex h-11 items-center justify-center overflow-hidden rounded-full border border-border/40 bg-background/70 shadow-2xl backdrop-blur-md transition-all hover:bg-background/85 sm:h-auto sm:w-auto sm:justify-start sm:gap-1.5 sm:bg-background/60 sm:p-1 sm:backdrop-blur-sm sm:hover:bg-background/80",
+            "nav-lit flex h-11 items-center justify-center overflow-hidden rounded-full transition-all hover:border-accent/50 sm:h-auto sm:w-auto sm:justify-start sm:gap-1.5 sm:p-1",
             isStatusExpanded ? "w-auto gap-1.5 p-1" : "w-11 p-0"
           )}
           aria-label={`Status: ${time} IST, ${views === null ? "visit count unavailable" : `${views.toLocaleString()} visits`}`}

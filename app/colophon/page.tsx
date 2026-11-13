@@ -11,7 +11,7 @@ const stages = [
   ["Colour", "Building a palette with clear interface roles and cultural inspiration."],
   ["Typography", "Giving editorial, engineering, metadata, and Japanese text their own voices."],
   ["Composition", "Letting actual image proportions and whitespace set the rhythm."],
-  ["Layering", "Using blur at boundaries to create depth while leaving text clear."],
+  ["Layering", "Using light at boundaries to create depth while leaving text clear."],
   ["Implementation", "Bringing the system into React and reusable CSS tokens."],
   ["Iteration", "Refining contrast, motion, content flow, and responsive behaviour."],
 ];
@@ -27,10 +27,10 @@ export default function ColophonPage() {
   return <SiteFrame><main className="pb-12 pt-32 sm:pt-40">
     <section className="px-[var(--page-gutter)]"><div className="page-shell grid items-end gap-9 md:grid-cols-[1.2fr_.8fr]">
       <div><p className="meta-label mb-5 text-bengara">KASANE / design notes</p><h1 className="editorial-title max-w-4xl text-[clamp(3rem,7.2vw,6.8rem)] leading-[.92]">A study in colour,<br/>light and structure.</h1><p className="mt-6 max-w-xl text-base text-muted-foreground">An exploration of the decisions, references and processes behind this digital space.</p></div>
-      <div className="relative"><Image src="/images/gallery/photo-3.jpg" alt="Golden wild grass against a clear sky from the existing photography collection" width={4000} height={6000} sizes="(max-width: 768px) 90vw, 35vw" className="h-auto w-full object-contain"/></div>
+      <div className="relative"><Image src="/images/gallery/10.jpg" alt="Nature photograph captured on December 28, 2025" width={4000} height={6000} sizes="(max-width: 768px) 90vw, 35vw" className="h-auto w-full object-contain"/></div>
     </div></section>
 
-    <section className="section-transition section-paper mt-24 px-[var(--page-gutter)] py-16"><div className="page-shell grid gap-8 md:grid-cols-[.7fr_1.3fr]"><p className="meta-label text-seiji-ink">01 / Design philosophy</p><div><h2 className="font-display text-4xl sm:text-5xl">KASANE <span className="font-japanese text-3xl text-seiji-ink">{"重ね"}</span></h2><div className="mt-5 grid gap-5 text-sm leading-relaxed text-muted-foreground sm:grid-cols-2"><p>Kasane means layering. Here it describes how a photograph, a field of colour, and the interface can sit together without flattening into one surface. Blur appears at edges and transitions; text stays clear.</p><p>Engineering and photography have different rhythms. Engineering uses Geist, precise labels, and structured information. Photography uses large image fields, Newsreader, and open spacing. A shared palette connects them.</p><p>Japanese colour names are a source of tonal inspiration. Their cultural history is distinct from the digital contrast calculations used for this interface.</p><p>{placeholders.personalNote}</p></div></div></div></section>
+    <section className="section-transition section-paper mt-24 px-[var(--page-gutter)] py-16"><div className="page-shell grid gap-8 md:grid-cols-[.7fr_1.3fr]"><p className="meta-label text-seiji-ink">01 / Design philosophy</p><div><h2 className="font-display text-4xl sm:text-5xl">KASANE <span className="font-japanese text-3xl text-seiji-ink">{"重ね"}</span></h2><div className="mt-5 grid gap-5 text-sm leading-relaxed text-muted-foreground sm:grid-cols-2"><p>Kasane means layering. Here it describes how a photograph, a field of colour, and the interface can sit together without flattening into one surface. Light falls at edges and transitions; text stays clear.</p><p>Engineering and photography have different rhythms. Engineering uses Geist, precise labels, and structured information. Photography uses large image fields, Newsreader, and open spacing. A shared palette connects them.</p><p>Japanese colour names are a source of tonal inspiration. Their cultural history is distinct from the digital contrast calculations used for this interface.</p><p>{placeholders.personalNote}</p></div></div></div></section>
 
     <section className="px-[var(--page-gutter)] py-16"><div className="page-shell"><p className="meta-label mb-4 text-bengara">02 / Colour laboratory</p><h2 className="section-heading mb-8">Nine tones, one atmosphere.</h2><ColorLab/></div></section>
 

@@ -74,7 +74,7 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;600&display=swap" rel="stylesheet" />
       </head>
       <body suppressHydrationWarning className="min-h-screen antialiased transition-colors duration-300">
-        <Script id="kasane-theme-init" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: "try { if (localStorage.getItem('theme') === 'dark') { document.documentElement.classList.add('dark'); document.querySelector('meta[name=theme-color]')?.setAttribute('content', '#171B1C'); } } catch {}" }} />
+        <Script id="kasane-theme-init" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: "try { if (localStorage.getItem('theme') === 'dark') { document.documentElement.classList.add('dark'); document.querySelector('meta[name=theme-color]')?.setAttribute('content', '#121617'); } } catch {}" }} />
         <ThemeProvider>
           <MotionConfig reducedMotion="user">
           <HeroProvider>

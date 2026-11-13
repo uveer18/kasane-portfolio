@@ -1,28 +1,63 @@
 export type Photograph = {
-  src: string;
-  thumbnail?: string;
-  title: string;
-  alt: string;
-  description?: string;
-  collection?: string;
-  captureDate?: string;
-  camera?: string;
-  lens?: string;
-  focalLength?: string;
-  aperture?: string;
-  shutterSpeed?: string;
-  iso?: string;
-  location?: string;
-  aspectRatio?: number;
-  width?: number;
-  height?: number;
+  src: string; thumbnail?: string; title: string; alt: string; description?: string; collection?: string;
+  captureDate?: string; camera?: string; lens?: string; focalLength?: string; aperture?: string;
+  shutterSpeed?: string; iso?: string; location?: string; aspectRatio?: number; width?: number; height?: number; fileSize?: number; exifProcessed?: boolean;
 };
 
+/**
+ * The Galaxy S24 Ultra writes physical focal lengths into EXIF. These are the
+ * 35mm equivalents the lens actually covers, so the metadata reads correctly.
+ */
+const S24_ULTRA_FOCAL_LENGTHS: Record<string, string> = {
+  "2.2": "13",
+  "6.3": "23",
+  "7.9": "69",
+  "18.6": "115",
+};
+
+export function isSamsungS24Ultra(photo: Photograph): boolean {
+  return /s24\s*ultra/i.test(photo.camera ?? "");
+}
+
+/** Focal length shown to the reader, converted for the S24 Ultra and untouched elsewhere. */
+export function displayFocalLength(photo: Photograph): string | undefined {
+  const value = photo.focalLength;
+  if (!value) return undefined;
+  if (!isSamsungS24Ultra(photo)) return value;
+  const match = value.match(/\d+(?:\.\d+)?/);
+  if (!match) return value;
+  const converted = S24_ULTRA_FOCAL_LENGTHS[match[0]];
+  return converted ? `${converted} mm` : value;
+}
+
 export const photographs: Photograph[] = [
-  { src: "/images/gallery/photo-1.jpg", title: "Solitary Mountain Peak Rising Above Quiet Valley at Golden Hour", alt: "Snow-capped mountain peak under clear blue sky with rugged surrounding mountains", collection: "Nature", width: 4000, height: 3000, aspectRatio: 4 / 3 },
-  { src: "/images/gallery/photo-2.jpg", title: "Misty Himalayan Peaks Framed by Dark Pine Trees in Morning Light", alt: "Snow-covered mountain peak partially hidden by mist and framed by tall pine trees", collection: "Nature", width: 5605, height: 3153, aspectRatio: 5605 / 3153 },
-  { src: "/images/gallery/photo-3.jpg", title: "Golden Wild Grass Swaying Gently Against Clear Blue Autumn Sky", alt: "Tall golden grass plants blowing in wind under bright blue sky", collection: "Nature", width: 4000, height: 6000, aspectRatio: 2 / 3 },
-  { src: "/images/gallery/photo-4.jpg", title: "Soft Waterfall Cascading Down Mossy Cliff in Mountain Forest", alt: "Long exposure photograph of waterfall flowing down rocky cliff face", collection: "Nature", width: 3374, height: 5998, aspectRatio: 3374 / 5998 },
-  { src: "/images/gallery/photo-5.jpg", title: "Delicate White Daisy Flowers Blooming Among Deep Green Leaves", alt: "Close-up of white daisy flowers with dark centers surrounded by green foliage", collection: "Nature", width: 4278, height: 5706, aspectRatio: 4278 / 5706 },
-  { src: "/images/gallery/photo-6.jpg", title: "Sunlit River Flowing Over Rocky Streambed Through Forest Clearing", alt: "Small river with rocks reflecting sunlight surrounded by trees", collection: "Nature", width: 3804, height: 5074, aspectRatio: 3804 / 5074 },
-];
+  { src: "/images/gallery/01.jpg", title: "Nature study", alt: "Nature photograph captured on 2025-12-24", collection: "Nature", width: 4284, height: 2410, fileSize: 898558, aspectRatio: 4284 / 2410, captureDate: "2025-12-24T08:14:33", camera: "Samsung Galaxy S24 Ultra", lens: "Samsung Galaxy S24 Ultra Rear Super Telephoto Camera", focalLength: "18.6 mm", aperture: "f/3.4", shutterSpeed: "1/1250s", iso: "32" },
+  { src: "/images/gallery/02.jpg", title: "Nature study", alt: "Nature photograph captured on 2025-12-24", collection: "Nature", width: 4284, height: 5712, fileSize: 6284782, aspectRatio: 4284 / 5712, captureDate: "2025-12-24T08:14:33", camera: "Samsung Galaxy S24 Ultra", lens: "Samsung Galaxy S24 Ultra Rear Super Telephoto Camera", focalLength: "18.6 mm", aperture: "f/3.4", shutterSpeed: "1/1250s", iso: "32" },
+  { src: "/images/gallery/03.jpg", title: "Nature study", alt: "Nature photograph captured on 2025-12-24", collection: "Nature", width: 6000, height: 4000, fileSize: 7539212, aspectRatio: 6000 / 4000, captureDate: "2025-12-24T11:32:10", camera: "Sony ILCE-7M2", lens: "FE 28-70mm F3.5-5.6 OSS", focalLength: "70 mm", aperture: "f/9", shutterSpeed: "1/500s", iso: "800" },
+  { src: "/images/gallery/04.jpg", title: "Nature study", alt: "Nature photograph captured on 2025-12-24", collection: "Nature", width: 12000, height: 8000, fileSize: 42320006, aspectRatio: 12000 / 8000, captureDate: "2025-12-24T12:27:43", camera: "Sony ILCE-7M2", lens: "FE 28-70mm F3.5-5.6 OSS", focalLength: "38 mm", aperture: "f/4", shutterSpeed: "1/500s", iso: "400" },
+  { src: "/images/gallery/05.jpg", title: "Nature study", alt: "Nature photograph captured on 2025-12-24", collection: "Nature", width: 4284, height: 2410, fileSize: 2107538, aspectRatio: 4284 / 2410, captureDate: "2025-12-24T13:32:54", camera: "Samsung Galaxy S24 Ultra", lens: "Samsung Galaxy S24 Ultra Rear Wide Camera", focalLength: "6.3 mm", aperture: "f/1.7", shutterSpeed: "1/850s", iso: "12" },
+  { src: "/images/gallery/06.jpg", title: "Nature study", alt: "Nature photograph captured on 2025-12-25", collection: "Nature", width: 3804, height: 5074, fileSize: 12250742, aspectRatio: 3804 / 5074, captureDate: "2025-12-25T09:38:03", camera: "Samsung Galaxy S24 Ultra", lens: "Samsung Galaxy S24 Ultra Rear Super Telephoto Camera", focalLength: "18.6 mm", aperture: "f/3.4", shutterSpeed: "1/170s", iso: "32" },
+  { src: "/images/gallery/07.jpg", title: "Nature study", alt: "Nature photograph captured on 2025-12-27", collection: "Nature", width: 4000, height: 3000, fileSize: 3662294, aspectRatio: 4000 / 3000, captureDate: "2025-12-27T09:35:25", camera: "Samsung Galaxy S24 Ultra", lens: "Samsung Galaxy S24 Ultra Rear Telephoto Camera", focalLength: "7.9 mm", aperture: "f/2.4", shutterSpeed: "1/1400s", iso: "50" },
+  { src: "/images/gallery/08.jpg", title: "Nature study", alt: "Nature photograph captured on 2025-12-27", collection: "Nature", width: 5605, height: 3153, fileSize: 4683792, aspectRatio: 5605 / 3153, captureDate: "2025-12-27T12:49:33", camera: "Samsung Galaxy S24 Ultra", lens: "Samsung Galaxy S24 Ultra Rear Super Telephoto Camera", focalLength: "18.6 mm", aperture: "f/3.4", shutterSpeed: "1/250s", iso: "32" },
+  { src: "/images/gallery/09.jpg", title: "Nature study", alt: "Nature photograph captured on 2025-12-27", collection: "Nature", width: 5999, height: 3375, fileSize: 5068033, aspectRatio: 5999 / 3375, captureDate: "2025-12-27T13:37:01", camera: "Sony ILCE-7M2", lens: "FE 28-70mm F3.5-5.6 OSS", focalLength: "70 mm", aperture: "f/5.6", shutterSpeed: "1/1000s", iso: "100" },
+  { src: "/images/gallery/10.jpg", title: "Nature study", alt: "Nature photograph captured on 2025-12-28", collection: "Nature", width: 4000, height: 6000, fileSize: 12839950, aspectRatio: 4000 / 6000, captureDate: "2025-12-28T10:43:36" },
+  { src: "/images/gallery/11.jpg", title: "Nature study", alt: "Nature photograph captured on 2025-12-28", collection: "Nature", width: 5998, height: 3374, fileSize: 6209720, aspectRatio: 5998 / 3374, captureDate: "2025-12-28T11:38:10", camera: "Sony ILCE-7M2", lens: "FE 28-70mm F3.5-5.6 OSS", focalLength: "70 mm", aperture: "f/36", shutterSpeed: "1/5s", iso: "320" },
+  { src: "/images/gallery/12.jpg", title: "Nature study", alt: "Nature photograph captured on 2025-12-29", collection: "Nature", width: 4284, height: 5712, fileSize: 24249050, aspectRatio: 4284 / 5712, captureDate: "2025-12-29T10:21:37", camera: "Samsung Galaxy S24 Ultra", lens: "Samsung Galaxy S24 Ultra Rear Wide Camera", focalLength: "6.3 mm", aperture: "f/1.7", shutterSpeed: "1/290s", iso: "12" },
+  { src: "/images/gallery/13.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-02-12", collection: "Nature", width: 4278, height: 5706, fileSize: 4512094, aspectRatio: 4278 / 5706, captureDate: "2026-02-12T14:51:06", camera: "Samsung Galaxy S24 Ultra", lens: "Samsung Galaxy S24 Ultra Rear Super Telephoto Camera", focalLength: "18.6 mm", aperture: "f/3.4", shutterSpeed: "1/350s", iso: "32" },
+  { src: "/images/gallery/14.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-02-12", collection: "Nature", width: 5361, height: 4019, fileSize: 5380307, aspectRatio: 5361 / 4019, captureDate: "2026-02-12T15:09:04", camera: "Samsung Galaxy S24 Ultra", lens: "Samsung Galaxy S24 Ultra Rear Super Telephoto Camera", focalLength: "18.6 mm", aperture: "f/3.4", shutterSpeed: "1/310s", iso: "32" },
+  { src: "/images/gallery/15.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-02-12", collection: "Nature", width: 5706, height: 4278, fileSize: 7881344, aspectRatio: 5706 / 4278, captureDate: "2026-02-12T15:27:16", camera: "Samsung Galaxy S24 Ultra", lens: "Samsung Galaxy S24 Ultra Rear Super Telephoto Camera", focalLength: "18.6 mm", aperture: "f/3.4", shutterSpeed: "1/120s", iso: "32" },
+  { src: "/images/gallery/16.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-03-16", collection: "Nature", width: 3705, height: 2084, fileSize: 2817382, aspectRatio: 3705 / 2084, captureDate: "2026-03-16T18:24:29", camera: "Sony ILCE-7M2", lens: "E 70-300mm F4.5-6.3 A047", focalLength: "300 mm", aperture: "f/6.3", shutterSpeed: "1/3200s", iso: "100" },
+  { src: "/images/gallery/17.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-03-16", collection: "Nature", width: 4332, height: 2437, fileSize: 698807, aspectRatio: 4332 / 2437, captureDate: "2026-03-16T18:28:30", camera: "Sony ILCE-7M2", lens: "E 70-300mm F4.5-6.3 A047", focalLength: "300 mm", aperture: "f/6.3", shutterSpeed: "1/1000s", iso: "100" },
+  { src: "/images/gallery/18.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-04-30", collection: "Nature", width: 5712, height: 4284, fileSize: 16133681, aspectRatio: 5712 / 4284, captureDate: "2026-04-30T10:58:50", camera: "Samsung Galaxy S24 Ultra", lens: "Samsung Galaxy S24 Ultra Rear Super Telephoto Camera", focalLength: "18.6 mm", aperture: "f/3.4", shutterSpeed: "1/750s", iso: "32" },
+  { src: "/images/gallery/19.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-05-04", collection: "Nature", width: 5536, height: 3690, fileSize: 14419901, aspectRatio: 5536 / 3690, captureDate: "2026-05-04T15:35:05", camera: "Samsung Galaxy S24 Ultra", lens: "Samsung Galaxy S24 Ultra Rear Wide Camera", focalLength: "6.3 mm", aperture: "f/1.7", shutterSpeed: "1/120s", iso: "12" },
+  { src: "/images/gallery/20.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-05-22", collection: "Nature", width: 6000, height: 4000, fileSize: 16607785, aspectRatio: 6000 / 4000, captureDate: "2026-05-22T18:27:53", camera: "Sony ILCE-7M2", lens: "E 70-300mm F4.5-6.3 A047", focalLength: "123 mm", aperture: "f/6.3", shutterSpeed: "1/200s", iso: "250" },
+  { src: "/images/gallery/21.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-05-30", collection: "Nature", width: 4284, height: 5712, fileSize: 14012050, aspectRatio: 4284 / 5712, captureDate: "2026-05-30T17:33:50", camera: "Samsung Galaxy S24 Ultra", lens: "Samsung Galaxy S24 Ultra Rear Super Telephoto Camera", focalLength: "18.6 mm", aperture: "f/3.4", shutterSpeed: "1/180s", iso: "32" },
+  { src: "/images/gallery/22.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-05-30", collection: "Nature", width: 5712, height: 4284, fileSize: 14393082, aspectRatio: 5712 / 4284, captureDate: "2026-05-30T17:34:32", camera: "Samsung Galaxy S24 Ultra", lens: "Samsung Galaxy S24 Ultra Rear Super Telephoto Camera", focalLength: "18.6 mm", aperture: "f/3.4", shutterSpeed: "1/190s", iso: "32" },
+  { src: "/images/gallery/23.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-07-12", collection: "Nature", width: 6000, height: 4000, fileSize: 15317399, aspectRatio: 6000 / 4000, captureDate: "2026-07-12T17:44:40", camera: "Sony ILCE-7M2", lens: "E 70-300mm F4.5-6.3 A047", focalLength: "300 mm", aperture: "f/6.3", shutterSpeed: "1/320s", iso: "400" },
+  { src: "/images/gallery/24.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-07-12", collection: "Nature", width: 6000, height: 4000, fileSize: 8114005, aspectRatio: 6000 / 4000, captureDate: "2026-07-12T18:03:44", camera: "Sony ILCE-7M2", lens: "E 70-300mm F4.5-6.3 A047", focalLength: "76 mm", aperture: "f/4.5", shutterSpeed: "1/1600s", iso: "100" },
+  { src: "/images/gallery/25.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-07-12", collection: "Nature", width: 6000, height: 4000, fileSize: 7542303, aspectRatio: 6000 / 4000, captureDate: "2026-07-12T18:30:38", camera: "Sony ILCE-7M2", lens: "E 70-300mm F4.5-6.3 A047", focalLength: "300 mm", aperture: "f/6.3", shutterSpeed: "1/8000s", iso: "125" },
+  { src: "/images/gallery/26.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-07-12", collection: "Nature", width: 5449, height: 3631, fileSize: 6472472, aspectRatio: 5449 / 3631, captureDate: "2026-07-12T19:07:24", camera: "Sony ILCE-7M2", lens: "E 70-300mm F4.5-6.3 A047", focalLength: "74 mm", aperture: "f/4.5", shutterSpeed: "1/400s", iso: "200" },
+  { src: "/images/gallery/27.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-09-13", collection: "Nature", width: 5821, height: 3182, fileSize: 15903594, aspectRatio: 5821 / 3182, captureDate: "2026-09-13T17:52:51" },
+  { src: "/images/gallery/28.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-10-11", collection: "Nature", width: 5738, height: 3826, fileSize: 11644075, aspectRatio: 5738 / 3826, captureDate: "2026-10-11T17:58:28", camera: "Sony ILCE-7M2", lens: "E 70-300mm F4.5-6.3 A047", focalLength: "70 mm", aperture: "f/4.5", shutterSpeed: "1/800s", iso: "125" },
+  { src: "/images/gallery/29.jpg", title: "Nature study", alt: "Nature photograph captured on 2026-10-11", collection: "Nature", width: 5712, height: 4284, fileSize: 7174993, aspectRatio: 5712 / 4284, captureDate: "2026-10-11T18:01:08", camera: "Samsung Galaxy S24 Ultra", lens: "Samsung Galaxy S24 Ultra Rear Wide Camera", focalLength: "6.3 mm", aperture: "f/1.7", shutterSpeed: "1/120s", iso: "25" },
+]

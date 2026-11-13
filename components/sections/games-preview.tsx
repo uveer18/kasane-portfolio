@@ -10,10 +10,10 @@ export function GamesPreview() {
           <h2 className="editorial-title text-4xl sm:text-5xl">A shelf for games.</h2>
           <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground">A personal gaming journal for the worlds, stories and mechanics that stay with me.</p>
         </div>
-        <Link href="/games" className="group relative flex min-h-48 items-center justify-between overflow-hidden rounded-2xl border border-border bg-card px-7 py-8 transition-colors hover:border-accent/60 sm:px-10">
-          <div className="absolute -right-8 -top-16 h-56 w-56 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--ruri)_45%,transparent),transparent_70%)] blur-2xl" />
+        <Link href="/games" className="card-lit group relative flex min-h-48 items-center justify-between overflow-hidden rounded-2xl border px-7 py-8 transition-colors hover:border-accent/60 sm:px-10">
+          <div className="absolute -right-8 -top-16 h-56 w-56 rounded-full bg-[radial-gradient(circle,var(--lum-glow),transparent_72%)]" />
           <div className="relative flex items-center gap-5">
-            <span className="glass flex h-14 w-14 items-center justify-center rounded-full text-accent"><Gamepad2 size={24} /></span>
+            <span className="surface-lit flex h-14 w-14 items-center justify-center rounded-full text-accent"><Gamepad2 size={24} /></span>
             <div>
               <p className="meta-label text-muted-foreground">Currently playing</p>
               <p className="mt-1 font-display text-2xl">[Add a game]</p>

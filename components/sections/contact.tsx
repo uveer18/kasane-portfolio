@@ -68,8 +68,8 @@ export function Contact() {
   };
 
   return (
-    <ViewportFadeSection id="contact" className="px-6 py-12 md:py-16">
-      <div className="mx-auto max-w-4xl">
+    <ViewportFadeSection id="contact" className="px-[var(--page-gutter)] py-12 md:py-16">
+      <div className="page-shell">
 
         <FadeIn>
           <div className="mb-16 flex items-center gap-4">
@@ -99,7 +99,7 @@ export function Contact() {
         <FadeIn delay={0.2}>
           <form
             onSubmit={handleSubmit}
-            className="mx-auto max-w-xl space-y-5 rounded-xl border border-border bg-card p-8 transition-all duration-500 ease-out hover:bg-card/60 hover:border-accent/40 hover:shadow-xl hover:shadow-accent/5"
+            className="card-lit mx-auto max-w-xl space-y-5 rounded-xl border p-8 transition-all duration-500 ease-out"
           >
             <div className="grid gap-4 sm:grid-cols-2">
 
@@ -139,7 +139,7 @@ export function Contact() {
               whileHover={{ y: -2 }}
               whileTap={{ scale: 0.97 }}
               type="submit"
-              className="w-full rounded-lg border border-border bg-muted px-6 py-3 text-sm font-medium text-foreground transition hover:bg-secondary"
+              className="btn-lit w-full rounded-lg border border-border bg-muted px-6 py-3 text-sm font-medium text-foreground transition hover:bg-secondary"
             >
               Send Message
             </motion.button>

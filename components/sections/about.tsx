@@ -38,7 +38,7 @@ const skills = [
   },
   {
     category: "Tools & Platforms",
-    items: ["Git", "Linux", "Docker", "Codex", "Vercel", "Render",  "Kaggle", "Raycast"],
+    items: ["Git", "Linux", "Docker", "Codex", "Vercel", "Render", "Kaggle", "Raycast"],
   },
   {
     category: "Coursework",
@@ -48,8 +48,8 @@ const skills = [
 
 export function About() {
   return (
-    <ViewportFadeSection id="about" className="relative px-6 py-24 md:py-20 overflow-hidden">
-      <div className="mx-auto max-w-6xl">
+    <ViewportFadeSection id="about" className="relative px-[var(--page-gutter)] py-24 md:py-20 overflow-hidden">
+      <div className="page-shell">
         <FadeIn>
           <div className="mb-12 flex items-center gap-4">
             <span className="h-px flex-1 bg-border" />
@@ -99,7 +99,7 @@ export function About() {
                       {group.items.map((skill) => (
                         <span
                           key={skill}
-                          className="rounded-full border border-border bg-card/50 px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-accent/50 hover:text-accent"
+                          className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-accent/50 hover:text-accent"
                         >
                           {skill}
                         </span>
@@ -130,10 +130,10 @@ export function About() {
                     <div className="absolute left-0 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background transition-colors group-hover:border-accent">
                       <edu.icon className="h-5 w-5 text-muted-foreground group-hover:text-accent transition-colors" />
                     </div>
-                    <div className="space-y-2 rounded-2xl border border-border/50 bg-card/50 p-5 transition-all hover:bg-card/100 hover:border-border">
+                    <div className="card-lit space-y-2 rounded-2xl border p-5 transition-all">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <h4 className="text-md font-semibold text-foreground">{edu.institution}</h4>
-                        <span className="text-xs font-medium text-accent bg-accent/10 px-2 py-0.5 -translate-x-[4px] rounded-full">{edu.period}</span>
+                        <span className="text-xs font-medium text-bengara bg-bengara/10 px-2 py-0.5 -translate-x-[4px] rounded-full">{edu.period}</span>
                       </div>
                       <p className="text-sm font-medium text-muted-foreground">{edu.degree}</p>
                       <p className="text-xs text-accent/80 font-mono">{edu.grade}</p>
@@ -149,4 +149,3 @@ export function About() {
     </ViewportFadeSection>
   );
 }
-
