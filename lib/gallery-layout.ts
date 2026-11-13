@@ -9,9 +9,9 @@ export type Rect = {
 
 export type PanelPlacement = "below" | "right";
 
-export const PERIPHERAL_GAP = 2;
-export const FOCUS_GAP = 10;
-export const GALLERY_PADDING = 16;
+export const PERIPHERAL_GAP = 1;
+export const FOCUS_GAP = 20;
+export const GALLERY_PADDING = 1;
 
 /** One gutter between the photographs of the overview gallery. */
 export const GALLERY_GAP = 3;
@@ -673,9 +673,12 @@ export function layoutFocusDesktop(
   const padding = GALLERY_PADDING;
   const gap = FOCUS_GAP;
 
-  const maxImageHeight = height * MAX_IMAGE_HEIGHT_RATIO;
   const availableWidth = width - padding * 2;
   const availableHeight = Math.max(1, height - padding * 2);
+  const panelHeight = FOCUS_PANEL_HEIGHT;
+
+  // Landscape: reserve room for the information panel below.
+  // Portrait: image and information panel sit side by side.
 
   const panelWidth = Math.min(
     FOCUS_PANEL_SIDE_WIDTH,
@@ -687,14 +690,15 @@ export function layoutFocusDesktop(
     availableWidth >= 600 &&
     availableHeight * ratio + panelWidth + gap <= availableWidth;
 
+
+  const maxImageHeight = panelOnRight
+    ? availableHeight
+    : Math.max(1, availableHeight - panelHeight - gap);
+
   const panelSpace = panelOnRight ? panelWidth + gap : 0;
 
   // Main image gets a modest enlargement relative to a normal fit.
-  const desiredHeight = Math.min(
-    maxImageHeight,
-    availableHeight,
-    width * 0.62 / ratio,
-  );
+  const desiredHeight = maxImageHeight;
 
   const desiredWidth = desiredHeight * ratio;
 
@@ -713,14 +717,12 @@ export function layoutFocusDesktop(
   const focalX =
     padding + (availableWidth - compositionWidth) / 2;
 
-  const panelHeight = FOCUS_PANEL_HEIGHT;
-
   const focalY = Math.max(
     padding,
     Math.min(
       (height - focalHeight - (panelOnRight ? 0 : panelHeight + gap)) / 2,
       height - padding - focalHeight -
-        (panelOnRight ? 0 : panelHeight + gap),
+      (panelOnRight ? 0 : panelHeight + gap),
     ),
   );
 
@@ -735,17 +737,17 @@ export function layoutFocusDesktop(
 
   const panel: Rect = panelOnRight
     ? {
-        x: focalX + focalWidth + gap,
-        y: focalY,
-        width: panelWidth,
-        height: focalHeight,
-      }
+      x: focalX + focalWidth + gap,
+      y: focalY,
+      width: panelWidth,
+      height: focalHeight,
+    }
     : {
-        x: focalX,
-        y: focalY + focalHeight + gap,
-        width: focalWidth,
-        height: panelHeight,
-      };
+      x: focalX,
+      y: focalY + focalHeight + gap,
+      width: focalWidth,
+      height: panelHeight,
+    };
 
   const leftWidth = Math.max(
     0,
@@ -763,8 +765,15 @@ export function layoutFocusDesktop(
 
   // Keep the photographic walls to two columns maximum, allocating the full
   // circular sequence proportionally to the space available on each side.
-  const rightColumns = Math.max(1, Math.min(2, Math.floor((rightWidth + PERIPHERAL_GAP) / 105)));
-  const leftColumns = Math.max(1, Math.min(2, Math.floor((leftWidth + PERIPHERAL_GAP) / 105)));
+  const MIN_SIDE_COLUMN_WIDTH = 64;
+
+const columnsForSide = (sideWidth: number) =>
+  sideWidth >= MIN_SIDE_COLUMN_WIDTH * 2 + PERIPHERAL_GAP
+    ? 2
+    : 1;
+
+const rightColumns = columnsForSide(rightWidth);
+const leftColumns = columnsForSide(leftWidth);
   const sideCount = images.length - 1;
   const rightSlots = Math.round(sideCount * rightWidth / Math.max(1, rightWidth + leftWidth));
   const leftSlots = sideCount - rightSlots;
@@ -784,7 +793,7 @@ export function layoutFocusDesktop(
     imageMap,
     rightX,
     rightWidth,
-    focalHeight,
+    height,
     PERIPHERAL_GAP,
     rightColumns,
     false,
@@ -797,7 +806,7 @@ export function layoutFocusDesktop(
     imageMap,
     padding,
     leftWidth,
-    focalHeight,
+    height + 20,
     PERIPHERAL_GAP,
     leftColumns,
     true,

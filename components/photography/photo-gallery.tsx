@@ -40,42 +40,63 @@ type GalleryFrame = {
  * the optimiser for very different widths, so they are genuinely different
  * assets rather than the same file twice.
  */
-function GalleryImageView({ image, highResolution, className, sizes, onLoad }: {
+
+function GalleryImageView({
+  image,
+  highResolution,
+  transitionDone,
+  className,
+  sizes,
+  onLoad,
+}: {
   image: GalleryImage;
   highResolution: boolean;
+  transitionDone: boolean;
   className?: string;
   sizes: string;
   onLoad?: (width: number, height: number) => void;
 }) {
-  const [originalReady, setOriginalReady] = useState(false);
+  const [loadedOriginalSrc, setLoadedOriginalSrc] = useState<string | null>(null);
 
-  /* A new identity starts from the thumbnail again. */
-  useEffect(() => { setOriginalReady(false); }, [image.src]);
+  // Original is visible only when BOTH loading and animation have finished.
+  const originalVisible =
+    highResolution &&
+    transitionDone &&
+    loadedOriginalSrc === image.src;
 
-  return <>
-    <Image
-      src={image.thumbnail || image.src}
-      alt={image.alt}
-      fill
-      sizes={sizes}
-      className={`spatial-image spatial-thumb${className ? ` ${className}` : ""}`}
-      onLoad={(event) => { const element = event.currentTarget; onLoad?.(element.naturalWidth, element.naturalHeight); }}
-    />
-    {highResolution && <Image
-      src={image.src}
-      alt=""
-      fill
-      sizes="100vw"
-      className={`spatial-image spatial-original${originalReady ? " is-ready" : ""}`}
-      onLoad={() => setOriginalReady(true)}
-    />}
-  </>;
+  return (
+    <>
+      {/* Every frame always retains its lightweight thumbnail. */}
+      <Image
+        src={image.thumbnail || image.src}
+        alt={image.alt}
+        fill
+        sizes={sizes}
+        className={`spatial-image spatial-thumb${className ? ` ${className}` : ""}`}
+        onLoad={(event) => {
+          const element = event.currentTarget;
+          onLoad?.(element.naturalWidth, element.naturalHeight);
+        }}
+      />
+
+      {/* The original exists only for the currently focused photograph. */}
+      {highResolution && (
+        <Image
+          key={image.id}
+          src={image.src}
+          alt=""
+          fill
+          sizes={sizes}
+          loading="eager"
+          className={`spatial-image spatial-original${originalVisible ? " is-ready" : ""}`}
+          onLoad={() => setLoadedOriginalSrc(image.src)}
+        />
+      )}
+    </>
+  );
 }
 
-/** The optimised URL the pipeline serves for a given width. */
-function optimisedUrl(src: string, width: number): string {
-  return `/_next/image?url=${encodeURIComponent(src)}&w=${width}&q=75`;
-}
+
 
 /** Height of the small viewport (100svh): stable while mobile browser chrome slides. */
 function measureSmallViewportHeight() {
@@ -114,6 +135,10 @@ export function PhotoGallery({ preview = false }: { preview?: boolean }) {
   const [stageWidth, setStageWidth] = useState(0);
   const [viewport, setViewport] = useState({ width: 0, height: 0, smallHeight: 0 });
   const [locked, setLocked] = useState(false);
+  const [focusTransitionDone, setFocusTransitionDone] = useState(false);
+
+  const focusTransitionTokenRef = useRef(0);
+  const focusTransitionPendingRef = useRef(false);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const galleryRef = useRef<HTMLDivElement>(null);
@@ -127,7 +152,6 @@ export function PhotoGallery({ preview = false }: { preview?: boolean }) {
   const anchorRef = useRef<{ id: string; offset: number } | null>(null);
   const resizeAnchorRef = useRef<{ id: string; offset: number } | null>(null);
   const restoreRef = useRef(false);
-  const [settledFocusId, setSettledFocusId] = useState<string | null>(null);
   const mobileTouchRef = useRef<{ x: number; y: number } | null>(null);
 
   /* Keep the collection in step with the server. */
@@ -219,33 +243,37 @@ export function PhotoGallery({ preview = false }: { preview?: boolean }) {
    * Keep every moving frame on its thumbnail during FLIP. Promote only the
    * settled hero to the original after the spatial transition has completed.
    */
-  useEffect(() => {
-    setSettledFocusId(null);
-    if (!focusedImageId) return;
-    const timer = window.setTimeout(
-      () => setSettledFocusId(focusedImageId),
-      TRANSITION_MS + 100,
-    );
-    return () => window.clearTimeout(timer);
-  }, [focusedImageId]);
 
   const highResolutionIds = useMemo(
-    () => new Set(settledFocusId ? [settledFocusId] : []),
-    [settledFocusId],
+    () => new Set(
+      focused && focusTransitionDone ? [focused.id] : []
+    ),
+    [focused?.id, focusTransitionDone],
   );
 
   /* The neighbours are prefetched at full resolution without changing them. */
+
+  /* Preload neighbouring thumbnails only. */
   useEffect(() => {
     if (!focused) return;
-    const { previousId, nextId } = neighbourIds(visibleImages, focused.id);
+
+    const { previousId, nextId } = neighbourIds(
+      visibleImages,
+      focused.id
+    );
+
     for (const id of [previousId, nextId]) {
       if (!id) continue;
+
       const image = visibleImages.find((item) => item.id === id);
       if (!image) continue;
+
       const preload = new window.Image();
-      preload.src = optimisedUrl(image.src, 1920);
+      preload.decoding = "async";
+      preload.src = image.thumbnail || image.src;
     }
   }, [focused, visibleImages]);
+
 
   const captureFrames = useCallback(() => {
     const measured = new Map<string, DOMRect>();
@@ -284,8 +312,11 @@ export function PhotoGallery({ preview = false }: { preview?: boolean }) {
     flipFromRef.current = captureFrames();
     panelFromRef.current = panelRef.current?.getBoundingClientRect() ?? null;
     lock();
+    focusTransitionTokenRef.current += 1;
+    focusTransitionPendingRef.current = !isMobile;
+    setFocusTransitionDone(isMobile);
     setFocusedImageId(id);
-  }, [captureAnchor, captureFrames, focusedImageId, lock, visibleImages]);
+  }, [captureAnchor, captureFrames, focusedImageId, lock, visibleImages, isMobile]);
 
   /** Move to the previous or next photograph, wrapping around the ends. */
   const stepFocus = useCallback((direction: -1 | 1) => {
@@ -297,8 +328,11 @@ export function PhotoGallery({ preview = false }: { preview?: boolean }) {
     flipFromRef.current = captureFrames();
     panelFromRef.current = panelRef.current?.getBoundingClientRect() ?? null;
     lock();
+    focusTransitionTokenRef.current += 1;
+    focusTransitionPendingRef.current = !isMobile;
+    setFocusTransitionDone(isMobile);
     setFocusedImageId(target);
-  }, [captureFrames, focused, lock, visibleImages]);
+  }, [captureFrames, focused, lock, visibleImages, isMobile]);
 
   /** Leave the focused gallery and return to the closed one where it was. */
   const release = useCallback(() => {
@@ -307,6 +341,9 @@ export function PhotoGallery({ preview = false }: { preview?: boolean }) {
     panelFromRef.current = panelRef.current?.getBoundingClientRect() ?? null;
     restoreRef.current = true;
     lock();
+    focusTransitionTokenRef.current += 1;
+    focusTransitionPendingRef.current = false;
+    setFocusTransitionDone(false);
     setFocusedImageId(null);
   }, [captureFrames, lock]);
 
@@ -350,27 +387,92 @@ export function PhotoGallery({ preview = false }: { preview?: boolean }) {
       }
     }
 
+
+    const shouldCompleteFocus =
+      focusTransitionPendingRef.current && !!focused && !mobileFocus;
+
+    const transitionToken = focusTransitionTokenRef.current;
+    focusTransitionPendingRef.current = false;
+
     const from = flipFromRef.current;
     flipFromRef.current = null;
-    if (!from) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (!from) {
+      if (shouldCompleteFocus) setFocusTransitionDone(true);
+      return;
+    }
+
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
     const duration = reduce ? 0 : TRANSITION_MS;
     const leaving = !focused;
+
+
+    const frameAnimations: Array<{
+      element: HTMLButtonElement;
+      animation: Animation;
+    }> = [];
 
     framesRef.current.forEach((element, key) => {
       const before = from.get(key);
       if (!before) return;
+
       const after = element.getBoundingClientRect();
       if (after.width < 1 || after.height < 1) return;
+
       const dx = before.left - after.left;
       const dy = before.top - after.top;
       const scale = before.width / after.width;
-      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(scale - 1) < 0.002) return;
-      element.animate(
-        [{ transform: `translate(${dx}px, ${dy}px) scale(${scale})` }, { transform: "translate(0px, 0px) scale(1)" }],
-        { duration, easing: EASING, fill: "backwards" },
+
+      if (
+        Math.abs(dx) < 0.5 &&
+        Math.abs(dy) < 0.5 &&
+        Math.abs(scale - 1) < 0.002
+      ) return;
+
+      // Promote only while this particular frame is moving.
+      element.style.willChange = "transform";
+
+      const animation = element.animate(
+        [
+          {
+            transform: `translate(${dx}px, ${dy}px) scale(${scale})`,
+          },
+          {
+            transform: "translate(0px, 0px) scale(1)",
+          },
+        ],
+        {
+          duration,
+          easing: EASING,
+          fill: "both",
+        }
       );
+
+      frameAnimations.push({ element, animation });
     });
+
+    // Always release animations and temporary GPU hints when finished.
+    void Promise.all(
+      frameAnimations.map(({ animation }) =>
+        animation.finished.catch(() => undefined)
+      )
+    ).then(() => {
+      for (const { element, animation } of frameAnimations) {
+        animation.cancel();
+        element.style.willChange = "";
+      }
+
+      if (
+        shouldCompleteFocus &&
+        focusTransitionTokenRef.current === transitionToken
+      ) {
+        setFocusTransitionDone(true);
+      }
+    });
+
 
     const panel = panelRef.current;
     const panelBefore = panelFromRef.current;
@@ -381,12 +483,15 @@ export function PhotoGallery({ preview = false }: { preview?: boolean }) {
       const after = panel.getBoundingClientRect();
       const dx = panelBefore ? panelBefore.left - after.left : 0;
       const dy = panelBefore ? panelBefore.top - after.top : 0;
-      panel.animate(
+      const panelAnimation = panel.animate(
         leaving
           ? [{ opacity: 1, transform: `translate(${dx}px, ${dy}px)` }, { opacity: 0, transform: "translate(0px, 0px)" }]
           : [{ opacity: entering ? 0 : 0.6, transform: `translate(${dx}px, ${dy + (entering ? 12 : 6)}px)` }, { opacity: 1, transform: "translate(0px, 0px)" }],
         { duration: reduce ? 0 : Math.round(duration * 0.7), easing: EASING, fill: "backwards" },
       );
+      void panelAnimation.finished
+        .then(() => panelAnimation.cancel())
+        .catch(() => undefined);
     } else {
       panelSeenRef.current = false;
     }
@@ -465,7 +570,12 @@ export function PhotoGallery({ preview = false }: { preview?: boolean }) {
       onClick={(event) => { event.stopPropagation(); focusImage(image.id); }}
       aria-label={`Open photograph: ${image.title}`}
     >
-      <GalleryImageView image={image} highResolution={highResolutionIds.has(image.id)} sizes={thumbnailSizes(rect ?? overview?.rects.get(image.id))} />
+      <GalleryImageView
+        image={image}
+        highResolution={highResolutionIds.has(image.id)}
+        transitionDone={focusTransitionDone}
+        sizes={thumbnailSizes(rect)}
+      />
     </button>
   );
 
@@ -507,9 +617,9 @@ export function PhotoGallery({ preview = false }: { preview?: boolean }) {
         </aside>}
 
         {focused && !mobileFocus && <>
-          <button type="button" onClick={() => stepFocus(-1)} disabled={locked} aria-label="Previous photograph" className="spatial-nav spatial-nav-previous surface-lit"><ArrowLeft size={18}/></button>
-          <button type="button" onClick={() => stepFocus(1)} disabled={locked} aria-label="Next photograph" className="spatial-nav spatial-nav-next surface-lit"><ArrowRight size={18}/></button>
-          <button type="button" onClick={release} aria-label="Close photograph" className="spatial-close surface-lit"><X size={20}/></button>
+          <button type="button" onClick={() => stepFocus(-1)} disabled={locked} aria-label="Previous photograph" className="spatial-nav spatial-nav-previous surface-lit"><ArrowLeft size={18} /></button>
+          <button type="button" onClick={() => stepFocus(1)} disabled={locked} aria-label="Next photograph" className="spatial-nav spatial-nav-next surface-lit"><ArrowRight size={18} /></button>
+          <button type="button" onClick={release} aria-label="Close photograph" className="spatial-close surface-lit"><X size={20} /></button>
         </>}
       </div>}
     </div>
@@ -566,7 +676,7 @@ function MobileFocus({ images, focused, layout, highResolutionIds, onSelect, onC
           onClick={() => onSelect(item.id)}
           aria-label={`Open photograph: ${item.title}`}
         >
-          <Image src={item.thumbnail} alt="" fill sizes="120px" className="spatial-image spatial-thumb"/>
+          <Image src={item.thumbnail} alt="" fill sizes="120px" className="spatial-image spatial-thumb" />
         </button>)}
       </div>)}
     </nav>
@@ -576,11 +686,17 @@ function MobileFocus({ images, focused, layout, highResolutionIds, onSelect, onC
         const image = images.find((item) => item.id === preview.id);
         if (!image) return null;
         return <div key={preview.id} className="spatial-edge-preview" style={{ left: preview.rect.x, top: preview.rect.y, width: preview.rect.width, height: preview.rect.height }}>
-          <Image src={image.thumbnail} alt="" fill sizes="200px" className="spatial-image spatial-thumb"/>
+          <Image src={image.thumbnail} alt="" fill sizes="200px" className="spatial-image spatial-thumb" />
         </div>;
       })}
       <div className="spatial-mobile-main" style={{ height: layout.main.height }}>
-        <GalleryImageView image={focused} highResolution={highResolutionIds.has(focused.id)} sizes="100vw"/>
+        <GalleryImageView
+          image={focused}
+          highResolution={highResolutionIds.has(focused.id)}
+          transitionDone={true}
+          sizes="100vw"
+          className="object-contain"
+        />
       </div>
     </div>
 
@@ -594,8 +710,8 @@ function MobileFocus({ images, focused, layout, highResolutionIds, onSelect, onC
       </div>
     </aside>
 
-    <button type="button" onClick={() => onSelect(neighbourIds(images, focused.id).previousId ?? focused.id)} aria-label="Previous photograph" className="spatial-nav spatial-nav-previous surface-lit"><ArrowLeft size={18}/></button>
-    <button type="button" onClick={() => onSelect(neighbourIds(images, focused.id).nextId ?? focused.id)} aria-label="Next photograph" className="spatial-nav spatial-nav-next surface-lit"><ArrowRight size={18}/></button>
-    <button type="button" onClick={onClose} aria-label="Close photograph" className="spatial-close surface-lit"><X size={20}/></button>
+    <button type="button" onClick={() => onSelect(neighbourIds(images, focused.id).previousId ?? focused.id)} aria-label="Previous photograph" className="spatial-nav spatial-nav-previous surface-lit"><ArrowLeft size={18} /></button>
+    <button type="button" onClick={() => onSelect(neighbourIds(images, focused.id).nextId ?? focused.id)} aria-label="Next photograph" className="spatial-nav spatial-nav-next surface-lit"><ArrowRight size={18} /></button>
+    <button type="button" onClick={onClose} aria-label="Close photograph" className="spatial-close surface-lit"><X size={20} /></button>
   </div>;
 }

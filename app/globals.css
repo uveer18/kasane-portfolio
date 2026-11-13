@@ -586,11 +586,6 @@ html[data-lightbox-open] body { overflow: hidden; padding-right: var(--lightbox-
   .image-fade { height: 28%; }
   .closing-mark { padding-top: 3.5rem; }
 }
-@media (max-width: 700px) {
-  /* A narrow panel cannot hold details beside the title, so they stack instead. */
-  .spatial-panel[data-placement="below"] { flex-direction: column; align-items: flex-start; gap: .5rem; }
-  .spatial-panel .photo-exif-grid { grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr)); }
-}
 @media (max-width: 360px) {
   :root { --page-gutter: 1rem; }
 }
@@ -1359,12 +1354,6 @@ html[data-lightbox-open] body { overflow: hidden; padding-right: var(--lightbox-
   background: var(--page);
 }
 
-.spatial-gallery[data-mode="focus"] .spatial-frame {
-  will-change: transform;
-  backface-visibility: hidden;
-  transform: translateZ(0);
-}
-
 .spatial-gallery[data-mode="focus"] .spatial-frame[data-focused="true"] {
   z-index: 15;
 }
@@ -1401,16 +1390,42 @@ html[data-lightbox-open] body { overflow: hidden; padding-right: var(--lightbox-
   font-size: 1.1rem;
 }
 
-.spatial-gallery[data-mode="focus"] .spatial-panel .photo-exif-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.spatial-gallery[data-mode="focus"] .spatial-panel {
+  container-type: inline-size;
+}
+
+/* Portrait: one vertical metadata column */
+.spatial-gallery[data-mode="focus"] .spatial-panel[data-placement="right"] {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.spatial-gallery[data-mode="focus"] .spatial-panel[data-placement="right"] .photo-exif-grid {
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-flow: row;
   align-content: start;
-  gap: .75rem 1rem;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
+  gap: .85rem 0;
+}
+
+/* Landscape: four columns, normally two rows */
+.spatial-gallery[data-mode="focus"] .spatial-panel[data-placement="below"] {
+  flex-direction: row;
+  align-items: center;
+}
+
+.spatial-gallery[data-mode="focus"] .spatial-panel[data-placement="below"] .photo-exif-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-flow: row;
+  align-content: center;
+  gap: .55rem .9rem;
+  overflow: hidden;
+}
+
+/* Wide landscape panel: all metadata in one row */
+@container (min-width: 900px) {
+  .spatial-panel[data-placement="below"] .photo-exif-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
 }
 
 .spatial-gallery[data-mode="focus"] .spatial-nav,
@@ -1429,14 +1444,18 @@ html[data-lightbox-open] body { overflow: hidden; padding-right: var(--lightbox-
 /* Cross-fade the original only after the focus transition has settled.
    The thumbnail remains visible as the animation layer. */
 .spatial-image.spatial-thumb {
-  transform: translateZ(0);
-  backface-visibility: hidden;
+  opacity: 1;
 }
 
 .spatial-image.spatial-original {
   z-index: 2;
+  opacity: 0;
   pointer-events: none;
-  transition: opacity 260ms ease;
+  transition: opacity 220ms ease;
+}
+
+.spatial-image.spatial-original.is-ready {
+  opacity: 1;
 }
 
 /* Mobile still uses a single viewport-height hero with its navigator and
@@ -1477,12 +1496,7 @@ html[data-lightbox-open] body { overflow: hidden; padding-right: var(--lightbox-
 
 @media (max-width: 900px) {
   .spatial-gallery[data-mode="focus"] .spatial-panel {
-    max-height: 42svh;
     padding: .75rem;
-  }
-
-  .spatial-gallery[data-mode="focus"] .spatial-panel .photo-exif-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
